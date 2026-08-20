@@ -11,22 +11,17 @@ export class RobotCleanerService extends BaseService {
     name: string, deviceStatus) {
     super(platform, accessory, componentId, capabilities, multiServiceAccessory, name, deviceStatus);
 
-    this.setServiceType(platform.Service.Valve);
+    this.removeStaleValveService();
+    this.setServiceType(platform.Service.Switch);
     this.log.debug(`Adding RobotCleanerService to ${this.name}`);
 
-    this.service.getCharacteristic(platform.Characteristic.ValveType)
-      .updateValue(platform.Characteristic.ValveType.GENERIC_VALVE);
+    this.service.setPrimaryService();
 
-    this.service.setCharacteristic(platform.Characteristic.IsConfigured,
-      platform.Characteristic.IsConfigured.CONFIGURED);
-
-    this.service.getCharacteristic(platform.Characteristic.Active)
+    this.service.getCharacteristic(platform.Characteristic.On)
       .onGet(this.getActive.bind(this))
       .onSet(this.setActive.bind(this));
 
-    this.service.getCharacteristic(platform.Characteristic.InUse)
-      .onGet(this.getInUse.bind(this));
-
+    this.service.addOptionalCharacteristic(platform.Characteristic.StatusFault);
     this.service.getCharacteristic(platform.Characteristic.StatusFault)
       .onGet(this.getStatusFault.bind(this));
 
@@ -36,8 +31,8 @@ export class RobotCleanerService extends BaseService {
     }
 
     if (pollSeconds > 0) {
-      multiServiceAccessory.startPollingState(pollSeconds, this.pollValveState.bind(this), this.service,
-        platform.Characteristic.Active);
+      multiServiceAccessory.startPollingState(pollSeconds, this.pollSwitchState.bind(this), this.service,
+        platform.Characteristic.On);
     }
   }
 
@@ -48,7 +43,7 @@ export class RobotCleanerService extends BaseService {
     }
   }
 
-  async pollValveState(): Promise<CharacteristicValue> {
+  async pollSwitchState(): Promise<CharacteristicValue> {
     const success = await this.getStatus();
     if (!success) {
       throw new this.platform.api.hap.HapStatusError(this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
@@ -61,10 +56,9 @@ export class RobotCleanerService extends BaseService {
     }
 
     this.log.debug(`Robot cleaner state=${state} for ${this.name}`);
-    this.service.updateCharacteristic(this.platform.Characteristic.InUse, this.robotStateToInUse(state));
     this.service.updateCharacteristic(this.platform.Characteristic.StatusFault, this.robotStateToStatusFault(state));
 
-    return this.robotStateToActive(state);
+    return this.robotStateToOn(state);
   }
 
   async getActive(): Promise<CharacteristicValue> {
@@ -80,25 +74,7 @@ export class RobotCleanerService extends BaseService {
           reject(new this.platform.api.hap.HapStatusError(this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE));
           return;
         }
-        resolve(this.robotStateToActive(state));
-      });
-    });
-  }
-
-  async getInUse(): Promise<CharacteristicValue> {
-    return new Promise((resolve, reject) => {
-      this.getStatus().then(success => {
-        if (!success) {
-          reject(new this.platform.api.hap.HapStatusError(this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE));
-          return;
-        }
-        const state = this.getRobotCleanerState();
-        if (!state) {
-          this.log.error(`Missing robot cleaner state from ${this.name}`);
-          reject(new this.platform.api.hap.HapStatusError(this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE));
-          return;
-        }
-        resolve(this.robotStateToInUse(state));
+        resolve(this.robotStateToOn(state));
       });
     });
   }
@@ -122,7 +98,7 @@ export class RobotCleanerService extends BaseService {
   }
 
   private async sendActiveCommand(value: CharacteristicValue): Promise<boolean> {
-    const active = value === this.platform.Characteristic.Active.ACTIVE;
+    const active = value === true || value === this.platform.Characteristic.Active.ACTIVE;
 
     if (this.capabilities.includes('robotCleanerOperatingState')) {
       const command = active ? 'start' : 'pause';
@@ -161,7 +137,25 @@ export class RobotCleanerService extends BaseService {
       this.deviceStatus.status.robotCleanerCleaningMode?.robotCleanerCleaningMode?.value;
   }
 
-  private robotStateToActive(state: string): number {
+  private removeStaleValveService(): void {
+    if (this.deviceHasCapability('valve')) {
+      return;
+    }
+
+    const staleValve = this.accessory.getService(this.platform.Service.Valve);
+    if (staleValve) {
+      this.log.info(`Removing stale Valve service from robot cleaner ${this.name}`);
+      this.accessory.removeService(staleValve);
+    }
+  }
+
+  private deviceHasCapability(capabilityId: string): boolean {
+    return this.accessory.context.device.components?.some(component =>
+      component.capabilities?.some(capability => capability.id === capabilityId),
+    ) ?? false;
+  }
+
+  private robotStateToOn(state: string): boolean {
     switch (state) {
     case 'running':
     case 'paused':
@@ -174,25 +168,9 @@ export class RobotCleanerService extends BaseService {
     case 'repeat':
     case 'manual':
     case 'map':
-      return this.platform.Characteristic.Active.ACTIVE;
+      return true;
     default:
-      return this.platform.Characteristic.Active.INACTIVE;
-    }
-  }
-
-  private robotStateToInUse(state: string): number {
-    switch (state) {
-    case 'running':
-    case 'cleaning':
-    case 'washingMop':
-    case 'auto':
-    case 'part':
-    case 'repeat':
-    case 'manual':
-    case 'map':
-      return this.platform.Characteristic.InUse.IN_USE;
-    default:
-      return this.platform.Characteristic.InUse.NOT_IN_USE;
+      return false;
     }
   }
 
@@ -219,8 +197,10 @@ export class RobotCleanerService extends BaseService {
   public processEvent(event: ShortEvent): void {
     if (this.isRobotCleanerStateEvent(event)) {
       this.log.debug(`Event updating robot cleaner state for ${this.name} to ${event.value}`);
-      this.service.updateCharacteristic(this.platform.Characteristic.Active, this.robotStateToActive(event.value));
-      this.service.updateCharacteristic(this.platform.Characteristic.InUse, this.robotStateToInUse(event.value));
+      this.service.updateCharacteristic(
+        this.platform.Characteristic.On,
+        this.robotStateToOn(event.value),
+      );
       this.service.updateCharacteristic(this.platform.Characteristic.StatusFault, this.robotStateToStatusFault(event.value));
     }
   }

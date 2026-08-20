@@ -510,6 +510,14 @@ export class MultiServiceAccessory {
       }
     }
 
+    if (capabilitiesToCover.includes('switch')) {
+      const hasRobotCleanerService = this.services.some(s => s instanceof RobotCleanerService);
+      if (hasRobotCleanerService) {
+        this.log.debug(`Removing legacy switch service for robot cleaner: ${this.name}`);
+        capabilitiesToCover = capabilitiesToCover.filter(cap => cap !== 'switch');
+      }
+    }
+
     Object.keys(MultiServiceAccessory.capabilityMap).forEach((capability) => {
       const service = MultiServiceAccessory.capabilityMap[capability];
 
