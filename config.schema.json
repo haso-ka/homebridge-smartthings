@@ -1,5 +1,5 @@
 {
-  "pluginAlias": "HomeBridgeSmartThings",
+  "pluginAlias": "HomeBridgeSmartThingsCustomHSK",
   "pluginType": "platform",
   "singular": true,
   "customUi": true,
