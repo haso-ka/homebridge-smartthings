@@ -11,7 +11,7 @@ This page lists every SmartThings capability the plugin recognizes and the HomeK
 The plugin examines each SmartThings device's components and capabilities, then:
 
 1. Detects **special device types** first (Samsung TVs, Samsung Family Hub fridges if enabled).
-2. Matches **combinations of capabilities** (combo map) to compound services like Thermostats, Air Conditioners, Air Purifiers, Washers, Dryers, Dishwashers, Security Systems, etc.
+2. Matches **combinations of capabilities** (combo map) to compound services like Thermostats, Air Conditioners, Air Purifiers, Washers, Dryers, Dishwashers, Robot Cleaners, Security Systems, etc.
 3. Maps any **remaining single capabilities** to individual services (Lock, Switch, Motion, Contact, etc.).
 
 This ordering means a thermostat (which has `temperatureMeasurement` plus `thermostatMode` plus setpoints) is exposed as a single Thermostat accessory rather than a separate temperature sensor and switch.
@@ -67,6 +67,9 @@ These rules match a **set** of capabilities to a single compound service. The pl
 | `washerOperatingState` | `washerMode`, `remoteControlStatus` | Washer *(Valve with Active/InUse and remaining duration)* |
 | `dryerOperatingState` | `dryerMode`, `remoteControlStatus` | Dryer *(Valve with Active/InUse and remaining duration)* |
 | `dishwasherOperatingState` | `dishwasherMode`, `remoteControlStatus` | Dishwasher *(Valve with Active/InUse and remaining duration)* |
+| `robotCleanerOperatingState` | `robotCleanerCleaningMode`, `robotCleanerMovement`, `robotCleanerTurboMode`, `remoteControlStatus` | Robot Cleaner *(Valve with Active/InUse and fault status; Active on/off sends start/pause)* |
+| `robotCleanerMovement` | `robotCleanerCleaningMode`, `robotCleanerTurboMode`, `remoteControlStatus` | Robot Cleaner *(fallback for profiles without `robotCleanerOperatingState`)* |
+| `robotCleanerCleaningMode` | `robotCleanerTurboMode`, `remoteControlStatus` | Robot Cleaner *(fallback; Active on/off sends auto/stop cleaning mode)* |
 | `securitySystem` | `alarm`, `panicAlarm`, `temperatureAlarm` | Security System |
 
 ---
@@ -99,6 +102,7 @@ Samsung **Frame TVs** additionally support local WebSocket control for true powe
 | **Samsung Frame TV** | Detected via the `artSupported` flag. Adds local WebSocket support for true power off and an Art Mode switch when configured in `frameTvDevices`. |
 | **Samsung Family Hub Refrigerator** | When `ExposeMultiZoneRefrigerator` is on and the device declares `samsungce.driverState`, the plugin parses Samsung's OCF blob to extract per-compartment temperatures (Freezer, FlexZone, CVRoom). Compartments disabled in the SmartThings app are pruned automatically. |
 | **Samsung Washers / Dryers / Dishwashers** | Exposed as a Valve accessory with Active/InUse and remaining-duration characteristics. Optional Contact Sensor for HomeKit Activity Notifications when a cycle ends (toggle via `ExposeContactSensorFor*`). The auto-generated Switch tile can be suppressed via `removeLegacySwitchForLaundry`. |
+| **SmartThings Robot Cleaners** | Exposed as a Valve accessory with Active/InUse and StatusFault. With `robotCleanerOperatingState`, Active on/off sends start/pause. Profiles that only expose cleaning mode fall back to auto/stop. Fault states such as stuck, dust bin full/missing, water tank problems, or failed docking are surfaced through StatusFault. |
 | **SmartThings Security Panel** | Exposed as a Security System accessory. Live alarm state reported via `alarm`, `panicAlarm`, and `temperatureAlarm`. |
 
 ---

@@ -31,6 +31,7 @@ import { VolumeSliderService } from './services/volumeSliderService';
 import { WasherService } from './services/washerService';
 import { DryerService } from './services/dryerService';
 import { DishwasherService } from './services/dishwasherService';
+import { RobotCleanerService } from './services/robotCleanerService';
 import { AirPurifierService } from './services/airPurifierService';
 import { SecuritySystemService } from './services/securitySystemService';
 import { RefrigeratorTemperatureService } from './services/refrigeratorTemperatureService';
@@ -189,6 +190,33 @@ export class MultiServiceAccessory {
       capabilities: ['dishwasherOperatingState'],
       optionalCapabilities: ['dishwasherMode', 'remoteControlStatus'],
       service: DishwasherService,
+    },
+    {
+      capabilities: ['robotCleanerOperatingState'],
+      optionalCapabilities: [
+        'robotCleanerCleaningMode',
+        'robotCleanerMovement',
+        'robotCleanerTurboMode',
+        'remoteControlStatus',
+      ],
+      service: RobotCleanerService,
+    },
+    {
+      capabilities: ['robotCleanerMovement'],
+      optionalCapabilities: [
+        'robotCleanerCleaningMode',
+        'robotCleanerTurboMode',
+        'remoteControlStatus',
+      ],
+      service: RobotCleanerService,
+    },
+    {
+      capabilities: ['robotCleanerCleaningMode'],
+      optionalCapabilities: [
+        'robotCleanerTurboMode',
+        'remoteControlStatus',
+      ],
+      service: RobotCleanerService,
     },
     {
       capabilities: ['securitySystem'],
