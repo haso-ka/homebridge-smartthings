@@ -165,8 +165,8 @@ export class DehumidifierService extends BaseService {
   }
 
 private async setTargetRelativeHumidity(value: CharacteristicValue): Promise<void> {
-    // Samsung dehumidifiers use 5% increments - round down to nearest 5%
-    const targetHumidity = Math.floor((value as number) / 5) * 5;
+    // Samsung dehumidifiers use 5% increments - round UP to nearest 5%
+    const targetHumidity = Math.ceil((value as number) / 5) * 5;
     this.log.info(`[${this.name}] set target relative humidity to ${targetHumidity}%`);
 
     // Try Samsung official capabilities (samsungce namespace)
