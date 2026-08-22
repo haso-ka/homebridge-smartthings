@@ -56,14 +56,14 @@ export class DehumidifierService extends BaseService {
       .onGet(this.getCurrentRelativeHumidity.bind(this));
 
     // Dehumidifier target humidity uses RelativeHumidityDehumidifierThreshold (not TargetRelativeHumidity)
-    // Use full 0-100 range with step 1 for proper HomeKit slider behavior (matches dummy plugin)
+    // Samsung dehumidifiers: 35-80% in 5% increments per device manual
     this.service.getCharacteristic(platform.Characteristic.RelativeHumidityDehumidifierThreshold)
       .onGet(this.getTargetRelativeHumidity.bind(this))
       .onSet(this.setTargetRelativeHumidity.bind(this))
       .setProps({
-        minStep: 1,
-        minValue: 0,
-        maxValue: 100,
+        minStep: 5,
+        minValue: 35,
+        maxValue: 80,
       });
 
     multiServiceAccessory.startPollingState(this.platform.config.PollSensorsSeconds,
@@ -164,18 +164,12 @@ export class DehumidifierService extends BaseService {
     return 50;
   }
 
-  private async setTargetRelativeHumidity(value: CharacteristicValue): Promise<void> {
-    const targetHumidity = value as number;
+private async setTargetRelativeHumidity(value: CharacteristicValue): Promise<void> {
+    // Samsung dehumidifiers use 5% increments - round down to nearest 5%
+    const targetHumidity = Math.floor((value as number) / 5) * 5;
     this.log.info(`[${this.name}] set target relative humidity to ${targetHumidity}%`);
 
-    // Debug: log what capabilities this device actually has
-    const deviceStatus = await this.getDeviceStatus();
-    const availableCaps = Object.keys(deviceStatus);
-    this.log.info(`[${this.name}] Available capabilities in status: ${availableCaps.join(', ')}`);
-
-// Try Samsung official capabilities (samsungce namespace)
-    // dehumidifierMode is for operation mode (high/medium/quiet/clothesDrying/max/smart), NOT target humidity
-    // relativeHumidityLevel has setDesiredHumidity(level: number) for target humidity
+    // Try Samsung official capabilities (samsungce namespace)
     const samsungCaps = [
       { capability: 'samsungce.relativeHumidityLevel', command: 'setDesiredHumidity', attribute: 'relativeHumidityLevel' },
       { capability: 'samsungce.dehumidifierTargetHumidity', command: 'setTargetHumidity', attribute: 'targetHumidity' },
@@ -183,12 +177,8 @@ export class DehumidifierService extends BaseService {
     ];
 
     for (const cap of samsungCaps) {
-      const isSupported = this.isCapabilitySupported(cap.capability) || availableCaps.includes(cap.capability);
-      this.log.info(`[${this.name}] Checking capability ${cap.capability}: supported=${isSupported}, inStatus=${availableCaps.includes(cap.capability)}`);
-      
-      if (isSupported) {
+      if (this.isCapabilitySupported(cap.capability)) {
         try {
-          this.log.info(`[${this.name}] Attempting to set humidity via ${cap.capability}.${cap.command} with value ${targetHumidity}`);
           await this.sendCommandsOrFail([
             new Command(this.componentId, cap.capability, cap.command, [targetHumidity]),
           ]);
@@ -197,12 +187,9 @@ export class DehumidifierService extends BaseService {
         } catch (error) {
           this.log.warn(`[${this.name}] Failed to set target humidity via ${cap.capability}: ${error}`);
         }
-      } else {
-        this.log.info(`[${this.name}] Capability ${cap.capability} not supported by this device`);
       }
     }
 
-    // If no supported capability found, throw not supported
     throw new this.platform.api.hap.HapStatusError(this.platform.api.hap.HAPStatus.RESOURCE_DOES_NOT_EXIST);
   }
 
