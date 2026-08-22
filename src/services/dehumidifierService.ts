@@ -55,7 +55,10 @@ export class DehumidifierService extends BaseService {
 
     this.service.getCharacteristic(platform.Characteristic.TargetHumidifierDehumidifierState)
       .onGet(this.getTargetHumidifierDehumidifierState.bind(this))
-      .onSet(this.setTargetHumidifierDehumidifierState.bind(this));
+      .onSet(this.setTargetHumidifierDehumidifierState.bind(this))
+      .setProps({
+        validValues: [2], // Only DEHUMIDIFIER (2) - this makes HomeKit recognize it as dehumidifier-only
+      });
 
     this.service.getCharacteristic(platform.Characteristic.CurrentRelativeHumidity)
       .onGet(this.getCurrentRelativeHumidity.bind(this));
@@ -151,15 +154,17 @@ export class DehumidifierService extends BaseService {
 
   private async getTargetRelativeHumidity(): Promise<CharacteristicValue> {
     const deviceStatus = await this.getDeviceStatus();
-    // Try to get target humidity from humidifierMode capability or custom capability
-    // Some Samsung dehumidifiers might expose a target humidity setpoint
+    // Check if device has a target humidity setpoint capability
+    // Samsung dehumidifiers might use a custom capability or humidifierMode for target
     if (deviceStatus.humidifierMode?.humidifierMode?.value) {
-      // If there's a specific target humidity capability, use it
-      // For now, check if there's a custom capability or use a default
+      // If humidifierMode reports a numeric target humidity, use it
+      const val = deviceStatus.humidifierMode.humidifierMode.value;
+      const num = parseInt(val, 10);
+      if (!isNaN(num)) {
+        return num;
+      }
     }
-    // Fallback: try to get from thermostatCoolingSetpoint or similar
-    // Most dehumidifiers don't expose a settable target via standard capabilities
-    // Return a reasonable default
+    // Fallback: return a reasonable default
     return 50;
   }
 
@@ -167,21 +172,19 @@ export class DehumidifierService extends BaseService {
     const targetHumidity = value as number;
     this.log.info(`[${this.name}] set target relative humidity to ${targetHumidity}%`);
 
-    // Try to set via humidifierMode if it supports humidity setpoint
-    // Some Samsung devices might use a custom capability for this
-    // For now, we'll attempt to use the humidifierMode capability if it has a setHumidity command
-    // or a custom capability
-    try {
-      // Check if device supports setting target humidity via humidifierMode
-      // This is device-specific; some may not support it
-      await this.sendCommandsOrFail([
-        new Command(this.componentId, 'humidifierMode', 'setHumidifierMode', [targetHumidity.toString()]),
-      ]);
-    } catch (error) {
-      this.log.warn(`[${this.name}] Failed to set target humidity via humidifierMode: ${error}`);
-      // Some devices may not support setting target humidity via standard capabilities
-      throw new this.platform.api.hap.HapStatusError(this.platform.api.hap.HAPStatus.RESOURCE_DOES_NOT_EXIST);
+    // Try to set via humidifierMode capability if present
+    if (this.isCapabilitySupported('humidifierMode')) {
+      try {
+        await this.sendCommandsOrFail([
+          new Command(this.componentId, 'humidifierMode', 'setHumidifierMode', [targetHumidity.toString()]),
+        ]);
+        return;
+      } catch (error) {
+        this.log.warn(`[${this.name}] Failed to set target humidity via humidifierMode: ${error}`);
+      }
     }
+    // If no supported capability for setting target humidity, throw not supported
+    throw new this.platform.api.hap.HapStatusError(this.platform.api.hap.HAPStatus.RESOURCE_DOES_NOT_EXIST);
   }
 
   private async getRotationSpeed(): Promise<CharacteristicValue> {
