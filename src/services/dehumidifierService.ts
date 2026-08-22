@@ -56,12 +56,13 @@ export class DehumidifierService extends BaseService {
       .onGet(this.getCurrentRelativeHumidity.bind(this));
 
     // Dehumidifier target humidity uses RelativeHumidityDehumidifierThreshold (not TargetRelativeHumidity)
+    // Samsung dehumidifiers: 35-80% in 5% increments per manual
     this.service.getCharacteristic(platform.Characteristic.RelativeHumidityDehumidifierThreshold)
       .onGet(this.getTargetRelativeHumidity.bind(this))
       .onSet(this.setTargetRelativeHumidity.bind(this))
       .setProps({
-        minStep: 1,
-        minValue: 30,
+        minStep: 5,
+        minValue: 35,
         maxValue: 80,
       });
 

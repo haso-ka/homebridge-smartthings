@@ -488,6 +488,15 @@ export class MultiServiceAccessory {
       }
     }
 
+    // Suppress legacy Switch tile for dehumidifier (switch is handled by DehumidifierService Active characteristic)
+    if (capabilitiesToCover.includes('switch')) {
+      const hasDehumidifierService = this.services.some(s => s instanceof DehumidifierService);
+      if (hasDehumidifierService) {
+        this.log.debug(`Removing legacy switch service for dehumidifier device: ${this.name}`);
+        capabilitiesToCover = capabilitiesToCover.filter(cap => cap !== 'switch');
+      }
+    }
+
     Object.keys(MultiServiceAccessory.capabilityMap).forEach((capability) => {
       const service = MultiServiceAccessory.capabilityMap[capability];
 
