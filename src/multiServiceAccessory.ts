@@ -122,11 +122,7 @@ export class MultiServiceAccessory {
     },
     {
       capabilities: ['switch', 'relativeHumidityMeasurement'],
-      optionalCapabilities: [
-        'airConditionerFanMode',
-        'fanSpeed',
-        'humidifierMode',
-      ],
+      optionalCapabilities: [],
       service: DehumidifierService,
     },
     {

@@ -5,14 +5,6 @@ import { Command } from './smartThingsCommand';
 import { ShortEvent } from '../webhook/subscriptionHandler';
 import { BaseService } from './baseService';
 
-enum DehumidifierMode {
-  Auto = 'auto',
-  Low = 'low',
-  Medium = 'medium',
-  High = 'high',
-  Dehumidify = 'dehumidify',
-}
-
 enum SwitchState {
   On = 'on',
   Off = 'off',
@@ -57,12 +49,13 @@ export class DehumidifierService extends BaseService {
       .onGet(this.getTargetHumidifierDehumidifierState.bind(this))
       .onSet(this.setTargetHumidifierDehumidifierState.bind(this))
       .setProps({
-        validValues: [2], // Only DEHUMIDIFIER (2) - this makes HomeKit recognize it as dehumidifier-only
+        validValues: [2], // Only DEHUMIDIFIER (2) - makes HomeKit recognize it as dehumidifier-only
       });
 
     this.service.getCharacteristic(platform.Characteristic.CurrentRelativeHumidity)
       .onGet(this.getCurrentRelativeHumidity.bind(this));
 
+    // TargetRelativeHumidity - settable via custom capability if available
     this.service.getCharacteristic(platform.Characteristic.TargetRelativeHumidity)
       .onGet(this.getTargetRelativeHumidity.bind(this))
       .onSet(this.setTargetRelativeHumidity.bind(this))
@@ -72,12 +65,6 @@ export class DehumidifierService extends BaseService {
         maxValue: 80,
       });
 
-    if (this.isCapabilitySupported('airConditionerFanMode') || this.isCapabilitySupported('fanSpeed')) {
-      this.service.getCharacteristic(platform.Characteristic.RotationSpeed)
-        .onGet(this.getRotationSpeed.bind(this))
-        .onSet(this.setRotationSpeed.bind(this));
-    }
-
     multiServiceAccessory.startPollingState(this.platform.config.PollSensorsSeconds,
       this.getActive.bind(this), this.service, platform.Characteristic.Active);
 
@@ -86,11 +73,6 @@ export class DehumidifierService extends BaseService {
 
     multiServiceAccessory.startPollingState(this.platform.config.PollSensorsSeconds,
       this.getTargetRelativeHumidity.bind(this), this.service, platform.Characteristic.TargetRelativeHumidity);
-
-    if (this.isCapabilitySupported('airConditionerFanMode') || this.isCapabilitySupported('fanSpeed')) {
-      multiServiceAccessory.startPollingState(this.platform.config.PollSensorsSeconds,
-        this.getRotationSpeed.bind(this), this.service, platform.Characteristic.RotationSpeed);
-    }
 
     return this.service;
   }
@@ -154,14 +136,20 @@ export class DehumidifierService extends BaseService {
 
   private async getTargetRelativeHumidity(): Promise<CharacteristicValue> {
     const deviceStatus = await this.getDeviceStatus();
-    // Check if device has a target humidity setpoint capability
-    // Samsung dehumidifiers might use a custom capability or humidifierMode for target
-    if (deviceStatus.humidifierMode?.humidifierMode?.value) {
-      // If humidifierMode reports a numeric target humidity, use it
-      const val = deviceStatus.humidifierMode.humidifierMode.value;
-      const num = parseInt(val, 10);
-      if (!isNaN(num)) {
-        return num;
+    // Try to read target humidity from Samsung official capabilities
+    const samsungCaps = [
+      'samsungce.dehumidifierTargetHumidity',
+      'samsungce.dehumidifierSetpoint',
+    ];
+    for (const cap of samsungCaps) {
+      if (deviceStatus[cap]?.targetHumidity?.value !== undefined) {
+        return deviceStatus[cap].targetHumidity.value;
+      }
+      if (deviceStatus[cap]?.humiditySetpoint?.value !== undefined) {
+        return deviceStatus[cap].humiditySetpoint.value;
+      }
+      if (deviceStatus[cap]?.value !== undefined) {
+        return deviceStatus[cap].value;
       }
     }
     // Fallback: return a reasonable default
@@ -172,74 +160,28 @@ export class DehumidifierService extends BaseService {
     const targetHumidity = value as number;
     this.log.info(`[${this.name}] set target relative humidity to ${targetHumidity}%`);
 
-    // Try to set via humidifierMode capability if present
-    if (this.isCapabilitySupported('humidifierMode')) {
-      try {
-        await this.sendCommandsOrFail([
-          new Command(this.componentId, 'humidifierMode', 'setHumidifierMode', [targetHumidity.toString()]),
-        ]);
-        return;
-      } catch (error) {
-        this.log.warn(`[${this.name}] Failed to set target humidity via humidifierMode: ${error}`);
+    // Try Samsung official capabilities (samsungce namespace)
+    const samsungCaps = [
+      { capability: 'samsungce.dehumidifierTargetHumidity', command: 'setTargetHumidity', attribute: 'targetHumidity' },
+      { capability: 'samsungce.dehumidifierSetpoint', command: 'setHumiditySetpoint', attribute: 'humiditySetpoint' },
+    ];
+
+    for (const cap of samsungCaps) {
+      if (this.isCapabilitySupported(cap.capability)) {
+        try {
+          await this.sendCommandsOrFail([
+            new Command(this.componentId, cap.capability, cap.command, [targetHumidity]),
+          ]);
+          this.log.info(`[${this.name}] Set target humidity via ${cap.capability}.${cap.command}`);
+          return;
+        } catch (error) {
+          this.log.warn(`[${this.name}] Failed to set target humidity via ${cap.capability}: ${error}`);
+        }
       }
     }
-    // If no supported capability for setting target humidity, throw not supported
+
+    // If no supported capability found, throw not supported
     throw new this.platform.api.hap.HapStatusError(this.platform.api.hap.HAPStatus.RESOURCE_DOES_NOT_EXIST);
-  }
-
-  private async getRotationSpeed(): Promise<CharacteristicValue> {
-    const deviceStatus = await this.getDeviceStatus();
-
-    if (this.isCapabilitySupported('airConditionerFanMode')) {
-      const fanMode = deviceStatus.airConditionerFanMode.fanMode.value as DehumidifierMode;
-      return this.fanModeToLevel(fanMode);
-    }
-
-    if (this.isCapabilitySupported('fanSpeed')) {
-      return deviceStatus.fanSpeed.value;
-    }
-
-    return 50;
-  }
-
-  private async setRotationSpeed(value: CharacteristicValue): Promise<void> {
-    const level = value as number;
-    const fanMode = this.levelToFanMode(level);
-    this.log.info(`[${this.name}] set rotation speed to ${fanMode} (from level ${level})`);
-
-    if (this.isCapabilitySupported('airConditionerFanMode')) {
-      await this.sendCommandsOrFail([new Command(this.componentId, 'airConditionerFanMode', 'setFanMode', [fanMode])]);
-    } else if (this.isCapabilitySupported('fanSpeed')) {
-      await this.sendCommandsOrFail([new Command(this.componentId, 'fanSpeed', 'setFanSpeed', [level])]);
-    }
-  }
-
-  private fanModeToLevel(fanMode: DehumidifierMode): number {
-    switch (fanMode) {
-      case DehumidifierMode.Low:
-        return 25;
-      case DehumidifierMode.Medium:
-        return 50;
-      case DehumidifierMode.High:
-        return 75;
-      case DehumidifierMode.Dehumidify:
-      case DehumidifierMode.Auto:
-      default:
-        return 100;
-    }
-  }
-
-  private levelToFanMode(level: number): DehumidifierMode {
-    if (level <= 0) {
-      return DehumidifierMode.Auto;
-    }
-    if (level <= 30) {
-      return DehumidifierMode.Low;
-    }
-    if (level <= 60) {
-      return DehumidifierMode.Medium;
-    }
-    return DehumidifierMode.High;
   }
 
   private async sendCommandsOrFail(commands: Command[]) {
@@ -276,18 +218,14 @@ export class DehumidifierService extends BaseService {
           event.value === SwitchState.On ? 1 : 0);
         break;
 
-      case 'airConditionerFanMode':
-        this.dehumidifierService.updateCharacteristic(this.platform.Characteristic.RotationSpeed,
-          this.fanModeToLevel(event.value as DehumidifierMode));
-        break;
-
-      case 'fanSpeed':
-        this.dehumidifierService.updateCharacteristic(this.platform.Characteristic.RotationSpeed, event.value);
-        break;
-
       case 'relativeHumidityMeasurement':
         this.dehumidifierService.updateCharacteristic(this.platform.Characteristic.CurrentRelativeHumidity, event.value);
         this.humiditySensorService?.updateCharacteristic(this.platform.Characteristic.CurrentRelativeHumidity, event.value);
+        break;
+
+      case 'samsungce.dehumidifierTargetHumidity':
+      case 'samsungce.dehumidifierSetpoint':
+        this.dehumidifierService.updateCharacteristic(this.platform.Characteristic.TargetRelativeHumidity, event.value);
         break;
 
       default:
