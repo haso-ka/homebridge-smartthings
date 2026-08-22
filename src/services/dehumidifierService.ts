@@ -56,14 +56,14 @@ export class DehumidifierService extends BaseService {
       .onGet(this.getCurrentRelativeHumidity.bind(this));
 
     // Dehumidifier target humidity uses RelativeHumidityDehumidifierThreshold (not TargetRelativeHumidity)
-    // Samsung dehumidifiers: 35-80% in 5% increments per device manual
+    // Use 0-100 range with step 1 for HomeKit slider (matches dummy plugin), round down to 5% for device
     this.service.getCharacteristic(platform.Characteristic.RelativeHumidityDehumidifierThreshold)
       .onGet(this.getTargetRelativeHumidity.bind(this))
       .onSet(this.setTargetRelativeHumidity.bind(this))
       .setProps({
-        minStep: 5,
-        minValue: 35,
-        maxValue: 80,
+        minStep: 1,
+        minValue: 0,
+        maxValue: 100,
       });
 
     multiServiceAccessory.startPollingState(this.platform.config.PollSensorsSeconds,
