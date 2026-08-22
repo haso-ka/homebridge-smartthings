@@ -22,10 +22,22 @@ export class DehumidifierService extends BaseService {
 
     this.log.debug(`Adding DehumidifierService to ${this.name}`);
 
+    // Remove legacy Switch service if it exists (switch is handled by Active characteristic)
+    this.removeLegacySwitchService(platform);
+
     this.dehumidifierService = this.setupDehumidifier(platform, multiServiceAccessory);
 
     if (this.isCapabilitySupported('relativeHumidityMeasurement')) {
       this.humiditySensorService = this.setupHumiditySensor(platform, multiServiceAccessory);
+    }
+  }
+
+  private removeLegacySwitchService(platform: IKHomeBridgeHomebridgePlatform): void {
+    // Find and remove any Switch service that's not the main dehumidifier service
+    const switchService = this.accessory.getService(platform.Service.Switch);
+    if (switchService && switchService !== this.dehumidifierService) {
+      this.log.info(`[${this.name}] Removing legacy Switch service from accessory`);
+      this.accessory.removeService(switchService);
     }
   }
 
@@ -160,6 +172,10 @@ export class DehumidifierService extends BaseService {
     const targetHumidity = value as number;
     this.log.info(`[${this.name}] set target relative humidity to ${targetHumidity}%`);
 
+    // Debug: log what capabilities this device actually has
+    const deviceStatus = await this.getDeviceStatus();
+    this.log.debug(`[${this.name}] Available capabilities in status: ${Object.keys(deviceStatus).join(', ')}`);
+
     // Try Samsung official capabilities (samsungce namespace)
     const samsungCaps = [
       { capability: 'samsungce.dehumidifierTargetHumidity', command: 'setTargetHumidity', attribute: 'targetHumidity' },
@@ -169,14 +185,17 @@ export class DehumidifierService extends BaseService {
     for (const cap of samsungCaps) {
       if (this.isCapabilitySupported(cap.capability)) {
         try {
+          this.log.info(`[${this.name}] Attempting to set humidity via ${cap.capability}.${cap.command} with value ${targetHumidity}`);
           await this.sendCommandsOrFail([
             new Command(this.componentId, cap.capability, cap.command, [targetHumidity]),
           ]);
-          this.log.info(`[${this.name}] Set target humidity via ${cap.capability}.${cap.command}`);
+          this.log.info(`[${this.name}] Successfully set target humidity via ${cap.capability}.${cap.command}`);
           return;
         } catch (error) {
           this.log.warn(`[${this.name}] Failed to set target humidity via ${cap.capability}: ${error}`);
         }
+      } else {
+        this.log.debug(`[${this.name}] Capability ${cap.capability} not supported by this device`);
       }
     }
 
