@@ -177,12 +177,21 @@ private async setTargetRelativeHumidity(value: CharacteristicValue): Promise<voi
     ];
 
     for (const cap of samsungCaps) {
-      if (this.isCapabilitySupported(cap.capability)) {
+      const supported = this.isCapabilitySupported(cap.capability);
+      this.log.info(`[${this.name}] Checking ${cap.capability}: supported=${supported}`);
+      
+      if (supported) {
         try {
+          this.log.info(`[${this.name}] Sending command: ${cap.capability}.${cap.command} with args [${targetHumidity}]`);
           await this.sendCommandsOrFail([
             new Command(this.componentId, cap.capability, cap.command, [targetHumidity]),
           ]);
           this.log.info(`[${this.name}] Successfully set target humidity via ${cap.capability}.${cap.command}`);
+          
+          // Verify by reading back
+          const status = await this.getDeviceStatus();
+          this.log.info(`[${this.name}] After set, status: ${JSON.stringify(status[cap.capability])}`);
+          
           return;
         } catch (error) {
           this.log.warn(`[${this.name}] Failed to set target humidity via ${cap.capability}: ${error}`);
