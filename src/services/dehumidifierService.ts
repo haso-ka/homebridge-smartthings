@@ -55,8 +55,8 @@ export class DehumidifierService extends BaseService {
     this.service.getCharacteristic(platform.Characteristic.CurrentRelativeHumidity)
       .onGet(this.getCurrentRelativeHumidity.bind(this));
 
-    // TargetRelativeHumidity - settable via custom capability if available
-    this.service.getCharacteristic(platform.Characteristic.TargetRelativeHumidity)
+    // Dehumidifier target humidity uses RelativeHumidityDehumidifierThreshold (not TargetRelativeHumidity)
+    this.service.getCharacteristic(platform.Characteristic.RelativeHumidityDehumidifierThreshold)
       .onGet(this.getTargetRelativeHumidity.bind(this))
       .onSet(this.setTargetRelativeHumidity.bind(this))
       .setProps({
@@ -72,7 +72,7 @@ export class DehumidifierService extends BaseService {
       this.getCurrentRelativeHumidity.bind(this), this.service, platform.Characteristic.CurrentRelativeHumidity);
 
     multiServiceAccessory.startPollingState(this.platform.config.PollSensorsSeconds,
-      this.getTargetRelativeHumidity.bind(this), this.service, platform.Characteristic.TargetRelativeHumidity);
+      this.getTargetRelativeHumidity.bind(this), this.service, platform.Characteristic.RelativeHumidityDehumidifierThreshold);
 
     return this.service;
   }
@@ -125,7 +125,6 @@ export class DehumidifierService extends BaseService {
 
   private async setTargetHumidifierDehumidifierState(value: CharacteristicValue): Promise<void> {
     // Dehumidifier only supports dehumidifier mode (value 2)
-    // This is a read-only characteristic for dehumidifiers
     this.log.debug(`[${this.name}] set target humidifier dehumidifier state to ${value} (ignored, dehumidifier only)`);
   }
 
@@ -225,7 +224,7 @@ export class DehumidifierService extends BaseService {
 
       case 'samsungce.dehumidifierTargetHumidity':
       case 'samsungce.dehumidifierSetpoint':
-        this.dehumidifierService.updateCharacteristic(this.platform.Characteristic.TargetRelativeHumidity, event.value);
+        this.dehumidifierService.updateCharacteristic(this.platform.Characteristic.RelativeHumidityDehumidifierThreshold, event.value);
         break;
 
       default:
