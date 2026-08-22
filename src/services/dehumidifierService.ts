@@ -174,7 +174,8 @@ export class DehumidifierService extends BaseService {
 
     // Debug: log what capabilities this device actually has
     const deviceStatus = await this.getDeviceStatus();
-    this.log.debug(`[${this.name}] Available capabilities in status: ${Object.keys(deviceStatus).join(', ')}`);
+    const availableCaps = Object.keys(deviceStatus);
+    this.log.info(`[${this.name}] Available capabilities in status: ${availableCaps.join(', ')}`);
 
     // Try Samsung official capabilities (samsungce namespace)
     const samsungCaps = [
@@ -183,7 +184,10 @@ export class DehumidifierService extends BaseService {
     ];
 
     for (const cap of samsungCaps) {
-      if (this.isCapabilitySupported(cap.capability)) {
+      const isSupported = this.isCapabilitySupported(cap.capability) || availableCaps.includes(cap.capability);
+      this.log.info(`[${this.name}] Checking capability ${cap.capability}: supported=${isSupported}, inStatus=${availableCaps.includes(cap.capability)}`);
+      
+      if (isSupported) {
         try {
           this.log.info(`[${this.name}] Attempting to set humidity via ${cap.capability}.${cap.command} with value ${targetHumidity}`);
           await this.sendCommandsOrFail([
@@ -195,7 +199,7 @@ export class DehumidifierService extends BaseService {
           this.log.warn(`[${this.name}] Failed to set target humidity via ${cap.capability}: ${error}`);
         }
       } else {
-        this.log.debug(`[${this.name}] Capability ${cap.capability} not supported by this device`);
+        this.log.info(`[${this.name}] Capability ${cap.capability} not supported by this device`);
       }
     }
 
