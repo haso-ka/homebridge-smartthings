@@ -138,27 +138,23 @@ export class DehumidifierService extends BaseService {
     const deviceStatus = await this.getDeviceStatus();
     // Try to read target humidity from Samsung official capabilities
     const samsungCaps = [
-      'samsungce.dehumidifierMode',
       'samsungce.relativeHumidityLevel',
       'samsungce.dehumidifierTargetHumidity',
       'samsungce.dehumidifierSetpoint',
     ];
     for (const cap of samsungCaps) {
+      // relativeHumidityLevel stores target in desiredHumidityLevel.value or relativeHumidityLevel.value
+      if (deviceStatus[cap]?.desiredHumidityLevel?.value !== undefined) {
+        return deviceStatus[cap].desiredHumidityLevel.value;
+      }
+      if (deviceStatus[cap]?.relativeHumidityLevel?.value !== undefined) {
+        return deviceStatus[cap].relativeHumidityLevel.value;
+      }
       if (deviceStatus[cap]?.targetHumidity?.value !== undefined) {
         return deviceStatus[cap].targetHumidity.value;
       }
       if (deviceStatus[cap]?.humiditySetpoint?.value !== undefined) {
         return deviceStatus[cap].humiditySetpoint.value;
-      }
-      if (deviceStatus[cap]?.relativeHumidityLevel?.value !== undefined) {
-        return deviceStatus[cap].relativeHumidityLevel.value;
-      }
-      if (deviceStatus[cap]?.dehumidifierMode?.value !== undefined) {
-        const val = deviceStatus[cap].dehumidifierMode.value;
-        const num = parseInt(val, 10);
-        if (!isNaN(num)) {
-          return num;
-        }
       }
       if (deviceStatus[cap]?.value !== undefined) {
         return deviceStatus[cap].value;
@@ -177,10 +173,11 @@ export class DehumidifierService extends BaseService {
     const availableCaps = Object.keys(deviceStatus);
     this.log.info(`[${this.name}] Available capabilities in status: ${availableCaps.join(', ')}`);
 
-    // Try Samsung official capabilities (samsungce namespace)
+// Try Samsung official capabilities (samsungce namespace)
+    // dehumidifierMode is for operation mode (high/medium/quiet/clothesDrying/max/smart), NOT target humidity
+    // relativeHumidityLevel has setDesiredHumidity(level: number) for target humidity
     const samsungCaps = [
-      { capability: 'samsungce.dehumidifierMode', command: 'setDehumidifierMode', attribute: 'dehumidifierMode' },
-      { capability: 'samsungce.relativeHumidityLevel', command: 'setRelativeHumidityLevel', attribute: 'relativeHumidityLevel' },
+      { capability: 'samsungce.relativeHumidityLevel', command: 'setDesiredHumidity', attribute: 'relativeHumidityLevel' },
       { capability: 'samsungce.dehumidifierTargetHumidity', command: 'setTargetHumidity', attribute: 'targetHumidity' },
       { capability: 'samsungce.dehumidifierSetpoint', command: 'setHumiditySetpoint', attribute: 'humiditySetpoint' },
     ];
@@ -250,9 +247,13 @@ export class DehumidifierService extends BaseService {
 
       case 'samsungce.dehumidifierTargetHumidity':
       case 'samsungce.dehumidifierSetpoint':
-      case 'samsungce.relativeHumidityLevel':
-      case 'samsungce.dehumidifierMode':
         this.dehumidifierService.updateCharacteristic(this.platform.Characteristic.RelativeHumidityDehumidifierThreshold, event.value);
+        break;
+      case 'samsungce.relativeHumidityLevel':
+        // relativeHumidityLevel has multiple attributes: desiredHumidityLevel, relativeHumidityLevel
+        if (event.attribute === 'desiredHumidityLevel' || event.attribute === 'relativeHumidityLevel') {
+          this.dehumidifierService.updateCharacteristic(this.platform.Characteristic.RelativeHumidityDehumidifierThreshold, event.value);
+        }
         break;
 
       default:
