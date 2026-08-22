@@ -22,22 +22,10 @@ export class DehumidifierService extends BaseService {
 
     this.log.debug(`Adding DehumidifierService to ${this.name}`);
 
-    // Remove legacy Switch service if it exists (switch is handled by Active characteristic)
-    this.removeLegacySwitchService(platform);
-
     this.dehumidifierService = this.setupDehumidifier(platform, multiServiceAccessory);
 
     if (this.isCapabilitySupported('relativeHumidityMeasurement')) {
       this.humiditySensorService = this.setupHumiditySensor(platform, multiServiceAccessory);
-    }
-  }
-
-  private removeLegacySwitchService(platform: IKHomeBridgeHomebridgePlatform): void {
-    // Find and remove any Switch service that's not the main dehumidifier service
-    const switchService = this.accessory.getService(platform.Service.Switch);
-    if (switchService && switchService !== this.dehumidifierService) {
-      this.log.info(`[${this.name}] Removing legacy Switch service from accessory`);
-      this.accessory.removeService(switchService);
     }
   }
 
@@ -68,14 +56,14 @@ export class DehumidifierService extends BaseService {
       .onGet(this.getCurrentRelativeHumidity.bind(this));
 
     // Dehumidifier target humidity uses RelativeHumidityDehumidifierThreshold (not TargetRelativeHumidity)
-    // Samsung dehumidifiers: 35-80% in 5% increments per manual
+    // Use full 0-100 range with step 1 for proper HomeKit slider behavior (matches dummy plugin)
     this.service.getCharacteristic(platform.Characteristic.RelativeHumidityDehumidifierThreshold)
       .onGet(this.getTargetRelativeHumidity.bind(this))
       .onSet(this.setTargetRelativeHumidity.bind(this))
       .setProps({
-        minStep: 5,
-        minValue: 35,
-        maxValue: 80,
+        minStep: 1,
+        minValue: 0,
+        maxValue: 100,
       });
 
     multiServiceAccessory.startPollingState(this.platform.config.PollSensorsSeconds,
