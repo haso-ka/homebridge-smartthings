@@ -33,6 +33,7 @@ import { DryerService } from './services/dryerService';
 import { DishwasherService } from './services/dishwasherService';
 import { RobotCleanerService } from './services/robotCleanerService';
 import { AirPurifierService } from './services/airPurifierService';
+import { DehumidifierService } from './services/dehumidifierService';
 import { SecuritySystemService } from './services/securitySystemService';
 import { RefrigeratorTemperatureService } from './services/refrigeratorTemperatureService';
 import { ZigbangSmartDoorlockService } from './services/zigbangSmartDoorlockService';
@@ -119,6 +120,11 @@ export class MultiServiceAccessory {
         'relativeHumidityMeasurement',
       ],
       service: AirPurifierService,
+    },
+    {
+      capabilities: ['switch', 'relativeHumidityMeasurement'],
+      optionalCapabilities: [],
+      service: DehumidifierService,
     },
     {
       capabilities: ['switch', 'fanSpeed', 'switchLevel'],
