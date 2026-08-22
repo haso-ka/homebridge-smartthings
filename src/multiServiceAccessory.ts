@@ -488,8 +488,6 @@ export class MultiServiceAccessory {
       }
     }
 
-    
-
     Object.keys(MultiServiceAccessory.capabilityMap).forEach((capability) => {
       const service = MultiServiceAccessory.capabilityMap[capability];
 
