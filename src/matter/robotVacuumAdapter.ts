@@ -117,8 +117,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     try {
       const uuid = this.accessory.UUID;
 
-      // Register with minimal clusters - let Matter.js create defaults for complex clusters
-      // Then update them after registration
+      // Register with proper cluster configurations that satisfy Matter.js validation
       await this.matterApi.registerPlatformAccessories('homebridge-smartthings-oauth-custom-hsk', 'HomeBridgeSmartThingsCustomHSK', [{
         UUID: uuid,
         displayName: this.context.label,
@@ -139,11 +138,50 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
           onOff: {
             onOff: this.currentPowerOn,
           },
+          // rvcOperationalState: must include error entry in supportedOperationalStates
+          rvcOperationalState: {
+            operationalState: this.currentOperationalState,
+            operationalError: MatterRvcOperationalState.OperationalError.NO_ERROR,
+            supportedOperationalStates: [
+              { operationalState: MatterRvcOperationalState.OperationalState.STOPPED, operationalError: MatterRvcOperationalState.OperationalError.NO_ERROR },
+              { operationalState: MatterRvcOperationalState.OperationalState.RUNNING, operationalError: MatterRvcOperationalState.OperationalError.NO_ERROR },
+              { operationalState: MatterRvcOperationalState.OperationalState.PAUSED, operationalError: MatterRvcOperationalState.OperationalError.NO_ERROR },
+              { operationalState: MatterRvcOperationalState.OperationalState.ERROR, operationalError: MatterRvcOperationalState.OperationalError.UNABLE_TO_START_OR_RESUME },
+              { operationalState: MatterRvcOperationalState.OperationalState.SEEKING_CHARGER, operationalError: MatterRvcOperationalState.OperationalError.NO_ERROR },
+              { operationalState: MatterRvcOperationalState.OperationalState.CHARGING, operationalError: MatterRvcOperationalState.OperationalError.NO_ERROR },
+              { operationalState: MatterRvcOperationalState.OperationalState.DOCKED, operationalError: MatterRvcOperationalState.OperationalError.NO_ERROR },
+            ],
+          },
+          // rvcCleanMode: supportedModes as struct array
+          rvcCleanMode: {
+            currentMode: this.currentCleanMode,
+            supportedModes: [
+              { mode: MatterRvcCleanMode.SupportedModes.AUTO, label: 'Auto' },
+              { mode: MatterRvcCleanMode.SupportedModes.QUIET, label: 'Quiet' },
+              { mode: MatterRvcCleanMode.SupportedModes.DEEP, label: 'Deep' },
+              { mode: MatterRvcCleanMode.SupportedModes.SPOT, label: 'Spot' },
+              { mode: MatterRvcCleanMode.SupportedModes.TURBO, label: 'Turbo' },
+            ],
+          },
+          // rvcRunMode: supportedModes must include at least one Idle mode tag
+          rvcRunMode: {
+            currentMode: this.currentRunMode,
+            supportedModes: [
+              { mode: MatterRvcRunMode.SupportedModes.VACUUM, label: 'Vacuum', modeTags: [{ value: 0 }] }, // Idle tag
+              { mode: MatterRvcRunMode.SupportedModes.MOP, label: 'Mop', modeTags: [{ value: 0 }] },
+              { mode: MatterRvcRunMode.SupportedModes.VACUUM_AND_MOP, label: 'Vacuum and Mop', modeTags: [{ value: 0 }] },
+            ],
+          },
+          // powerSource: batChargeLevel as 0-100 percentage
+          powerSource: {
+            batChargeLevel: this.currentBatteryLevel,
+            batChargeState: this.currentCharging ? MatterPowerSource.BatChargeState.CHARGING : MatterPowerSource.BatChargeState.NOT_CHARGING,
+            powerSource: MatterPowerSource.PowerSource.BATTERY,
+            batReplacementNeeded: MatterPowerSource.BatReplacementNeeded,
+            batReplaceability: MatterPowerSource.BatReplaceability.NOT_REPLACEABLE,
+          },
         },
       }]);
-
-      // Update complex clusters after registration with proper Matter.js struct format
-      await this.updateMatterClustersAfterRegistration();
 
       this.log.info(`[RobotVacuumAdapter] Registered Matter accessory: ${this.context.label} (${uuid})`);
     } catch (error) {
@@ -159,8 +197,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     const deviceId = this.context.deviceId;
 
     try {
-      // Only update STATE values, not configuration (supportedModes, supportedOperationalStates)
-      // Matter.js creates default configurations at registration time based on device type
+      // Update state values after registration
       await this.matterApi.updateAccessoryState(deviceId, MatterClusterNames.RvcOperationalState, {
         operationalState: this.currentOperationalState,
         operationalError: MatterRvcOperationalState.OperationalError.NO_ERROR,
