@@ -58,34 +58,34 @@ export const MatterRvcOperationalState = {
     RUNNING: 1,
     PAUSED: 2,
     ERROR: 3,
-    SEEKING_CHARGER: 4,
-    CHARGING: 5,
-    DOCKED: 6,
+    SEEKING_CHARGER: 64,
+    CHARGING: 65,
+    DOCKED: 66,
+    EMPTYING_DUST_BIN: 67,
+    CLEANING_MOP: 68,
+    FILLING_WATER_TANK: 69,
+    UPDATING_MAPS: 70,
   },
   OperationalError: {
     NO_ERROR: 0,
     UNABLE_TO_START_OR_RESUME: 1,
     UNABLE_TO_COMPLETE_OPERATION: 2,
     COMMAND_INVALID_IN_STATE: 3,
-    FAILED_TO_FIND_CHARGING_DOCK: 4,
-    STUCK: 5,
-    DUST_BIN_MISSING: 6,
-    DUST_BIN_FULL: 7,
-    WATER_TANK_EMPTY: 8,
-    WATER_TANK_MISSING: 9,
-    WATER_TANK_LID_OPEN: 10,
-    MOP_CLEANING_PAD_MISSING: 11,
-  },
-  OperationalStateTransition: {
-    STOPPED_TO_RUNNING: 0,
-    RUNNING_TO_PAUSED: 1,
-    PAUSED_TO_RUNNING: 2,
-    RUNNING_TO_STOPPED: 3,
-    STOPPED_TO_SEEKING_CHARGER: 4,
-    SEEKING_CHARGER_TO_CHARGING: 5,
-    CHARGING_TO_DOCKED: 6,
-    RUNNING_TO_ERROR: 7,
-    ERROR_TO_STOPPED: 8,
+    FAILED_TO_FIND_CHARGING_DOCK: 64,
+    STUCK: 65,
+    DUST_BIN_MISSING: 66,
+    DUST_BIN_FULL: 67,
+    WATER_TANK_EMPTY: 68,
+    WATER_TANK_MISSING: 69,
+    WATER_TANK_LID_OPEN: 70,
+    MOP_CLEANING_PAD_MISSING: 71,
+    LOW_BATTERY: 72,
+    CANNOT_REACH_TARGET_AREA: 73,
+    DIRTY_WATER_TANK_FULL: 74,
+    DIRTY_WATER_TANK_MISSING: 75,
+    WHEELS_JAMMED: 76,
+    BRUSH_JAMMED: 77,
+    NAVIGATION_SENSOR_OBSCURED: 78,
   },
 } as const;
 
@@ -118,6 +118,10 @@ export const MatterRvcCleanMode = {
     THOROUGH: 10,
     TURBO: 11,
   },
+  ModeTag: {
+    VACUUM: 0,
+    MOP: 1,
+  },
 } as const;
 
 export const MatterRvcRunMode = {
@@ -133,10 +137,19 @@ export const MatterRvcRunMode = {
     VACUUM_AND_MOP: 2,
     SWEEP: 3,
   },
+  ModeTag: {
+    IDLE: 16384,
+    CLEANING: 16385,
+    MAPPING: 16386,
+  },
 } as const;
 
 export const MatterPowerSource = {
-  BatChargeLevel: 0,
+  BatChargeLevel: {
+    OK: 0,
+    WARNING: 1,
+    CRITICAL: 2,
+  },
   BatChargeState: {
     NOT_CHARGING: 0,
     CHARGING: 1,

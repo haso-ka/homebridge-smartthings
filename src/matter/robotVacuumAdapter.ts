@@ -138,43 +138,43 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
           onOff: {
             onOff: this.currentPowerOn,
           },
-          // rvcOperationalState: use operationalStateList (not supportedOperationalStates)
+          // rvcOperationalState: operationalStateList must include Error state, no labels for standard states
           rvcOperationalState: {
             operationalState: this.currentOperationalState,
-            operationalError: { errorStateId: 0, errorStateLabel: 'No Error', errorStateDetails: '' },
+            operationalError: { errorStateId: 0, errorStateLabel: '', errorStateDetails: '' },
             operationalStateList: [
-              { operationalStateId: MatterRvcOperationalState.OperationalState.STOPPED, operationalStateLabel: 'Stopped' },
-              { operationalStateId: MatterRvcOperationalState.OperationalState.RUNNING, operationalStateLabel: 'Running' },
-              { operationalStateId: MatterRvcOperationalState.OperationalState.PAUSED, operationalStateLabel: 'Paused' },
-              { operationalStateId: MatterRvcOperationalState.OperationalState.ERROR, operationalStateLabel: 'Error' },
-              { operationalStateId: MatterRvcOperationalState.OperationalState.SEEKING_CHARGER, operationalStateLabel: 'Seeking Charger' },
-              { operationalStateId: MatterRvcOperationalState.OperationalState.CHARGING, operationalStateLabel: 'Charging' },
-              { operationalStateId: MatterRvcOperationalState.OperationalState.DOCKED, operationalStateLabel: 'Docked' },
+              { operationalStateId: MatterRvcOperationalState.OperationalState.STOPPED },
+              { operationalStateId: MatterRvcOperationalState.OperationalState.RUNNING },
+              { operationalStateId: MatterRvcOperationalState.OperationalState.PAUSED },
+              { operationalStateId: MatterRvcOperationalState.OperationalState.ERROR },
+              { operationalStateId: MatterRvcOperationalState.OperationalState.SEEKING_CHARGER },
+              { operationalStateId: MatterRvcOperationalState.OperationalState.CHARGING },
+              { operationalStateId: MatterRvcOperationalState.OperationalState.DOCKED },
             ],
           },
-          // rvcCleanMode: supportedModes as struct array
+          // rvcCleanMode: supportedModes with Vacuum/Mop mode tags
           rvcCleanMode: {
             currentMode: this.currentCleanMode,
             supportedModes: [
-              { mode: MatterRvcCleanMode.SupportedModes.AUTO, label: 'Auto' },
-              { mode: MatterRvcCleanMode.SupportedModes.QUIET, label: 'Quiet' },
-              { mode: MatterRvcCleanMode.SupportedModes.DEEP, label: 'Deep' },
-              { mode: MatterRvcCleanMode.SupportedModes.SPOT, label: 'Spot' },
-              { mode: MatterRvcCleanMode.SupportedModes.TURBO, label: 'Turbo' },
+              { mode: MatterRvcCleanMode.SupportedModes.AUTO, label: 'Auto', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
+              { mode: MatterRvcCleanMode.SupportedModes.QUIET, label: 'Quiet', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
+              { mode: MatterRvcCleanMode.SupportedModes.DEEP, label: 'Deep', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
+              { mode: MatterRvcCleanMode.SupportedModes.SPOT, label: 'Spot', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
+              { mode: MatterRvcCleanMode.SupportedModes.TURBO, label: 'Turbo', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
             ],
           },
-          // rvcRunMode: supportedModes with modeTags including Idle (16384)
+          // rvcRunMode: separate modes for Idle and Cleaning tags (cannot combine)
           rvcRunMode: {
             currentMode: this.currentRunMode,
             supportedModes: [
-              { mode: MatterRvcRunMode.SupportedModes.VACUUM, label: 'Vacuum', modeTags: [{ value: 16384 }] }, // Idle tag
-              { mode: MatterRvcRunMode.SupportedModes.MOP, label: 'Mop', modeTags: [{ value: 16384 }] },
-              { mode: MatterRvcRunMode.SupportedModes.VACUUM_AND_MOP, label: 'Vacuum and Mop', modeTags: [{ value: 16384 }] },
+              { mode: MatterRvcRunMode.SupportedModes.VACUUM, label: 'Vacuum', modeTags: [{ value: MatterRvcRunMode.ModeTag.IDLE }] },
+              { mode: MatterRvcRunMode.SupportedModes.MOP, label: 'Mop', modeTags: [{ value: MatterRvcRunMode.ModeTag.CLEANING }] },
+              { mode: MatterRvcRunMode.SupportedModes.VACUUM_AND_MOP, label: 'Vacuum and Mop', modeTags: [{ value: MatterRvcRunMode.ModeTag.CLEANING }] },
             ],
           },
-          // powerSource: batChargeLevel as uint8 (0-100)
+          // powerSource: batChargeLevel as enum (OK=0, WARNING=1, CRITICAL=2)
           powerSource: {
-            batChargeLevel: this.currentBatteryLevel,
+            batChargeLevel: this.batteryLevelToMatterEnum(this.currentBatteryLevel),
             batChargeState: this.currentCharging ? MatterPowerSource.BatChargeState.CHARGING : MatterPowerSource.BatChargeState.NOT_CHARGING,
             powerSource: MatterPowerSource.PowerSource.BATTERY,
             batReplacementNeeded: MatterPowerSource.BatReplacementNeeded,
@@ -212,7 +212,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       });
 
       await this.matterApi.updateAccessoryState(deviceId, MatterClusterNames.PowerSource, {
-        batChargeLevel: this.currentBatteryLevel,
+        batChargeLevel: this.batteryLevelToMatterEnum(this.currentBatteryLevel),
         batChargeState: this.currentCharging ? MatterPowerSource.BatChargeState.CHARGING : MatterPowerSource.BatChargeState.NOT_CHARGING,
         powerSource: MatterPowerSource.PowerSource.BATTERY,
         batReplacementNeeded: MatterPowerSource.BatReplacementNeeded,
@@ -487,11 +487,23 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     const level = value as number;
     if (typeof level === 'number' && level !== this.currentBatteryLevel) {
       this.currentBatteryLevel = Math.max(0, Math.min(100, level));
-      // BatChargeLevel is 0-10 enum (10% increments)
-      const matterBatLevel = Math.min(10, Math.floor(this.currentBatteryLevel / 10));
       this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.PowerSource, {
-        batChargeLevel: matterBatLevel,
+        batChargeLevel: this.batteryLevelToMatterEnum(this.currentBatteryLevel),
       });
+    }
+  }
+
+  /**
+   * Convert 0-100 battery percentage to Matter PowerSource.BatChargeLevel enum
+   * 0 = OK, 1 = Warning, 2 = Critical
+   */
+  private batteryLevelToMatterEnum(level: number): number {
+    if (level >= 50) {
+      return MatterPowerSource.BatChargeLevel.OK;
+    } else if (level >= 20) {
+      return MatterPowerSource.BatChargeLevel.WARNING;
+    } else {
+      return MatterPowerSource.BatChargeLevel.CRITICAL;
     }
   }
 
@@ -639,7 +651,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       [MatterClusterNames.RvcCleanMode]: { currentMode: this.currentCleanMode },
       [MatterClusterNames.RvcRunMode]: { currentMode: this.currentRunMode },
       [MatterClusterNames.PowerSource]: {
-        batChargeLevel: Math.min(10, Math.floor(this.currentBatteryLevel / 10)),
+        batChargeLevel: this.batteryLevelToMatterEnum(this.currentBatteryLevel),
         batChargeState: this.currentCharging ? MatterPowerSource.BatChargeState.CHARGING : MatterPowerSource.BatChargeState.NOT_CHARGING,
         powerSource: MatterPowerSource.PowerSource.BATTERY,
       },
