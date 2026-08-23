@@ -137,10 +137,15 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
             softwareVersion: 1,
             softwareVersionString: this.context.firmwareRevision || '1.0',
           },
+          // OnOff cluster with handler for on/off commands
           onOff: {
             onOff: this.currentPowerOn,
+            handlers: {
+              on: async () => this.handleOnOffCommand('on'),
+              off: async () => this.handleOnOffCommand('off'),
+            },
           },
-          // rvcOperationalState: operationalStateList must include Error state, no labels for standard states
+          // RvcOperationalState cluster with handlers for start/pause/goHome
           rvcOperationalState: {
             operationalState: this.currentOperationalState,
             operationalError: { errorStateId: MatterRvcOperationalState.OperationalError.NO_ERROR },
@@ -153,8 +158,13 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
               { operationalStateId: MatterRvcOperationalState.OperationalState.CHARGING },
               { operationalStateId: MatterRvcOperationalState.OperationalState.DOCKED },
             ],
+            handlers: {
+              start: async () => this.handleOperationalStateCommand('start'),
+              pause: async () => this.handleOperationalStateCommand('pause'),
+              goHome: async () => this.handleOperationalStateCommand('goHome'),
+            },
           },
-          // rvcCleanMode: supportedModes with Vacuum/Mop mode tags
+          // RvcCleanMode cluster with handler for changeToMode
           rvcCleanMode: {
             currentMode: this.currentCleanMode,
             supportedModes: [
@@ -164,8 +174,11 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
               { mode: MatterRvcCleanMode.SupportedModes.SPOT, label: 'Spot', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
               { mode: MatterRvcCleanMode.SupportedModes.TURBO, label: 'Turbo', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
             ],
+            handlers: {
+              changeToMode: async (request: { newMode: number }) => this.handleCleanModeCommand('changeToMode', [request.newMode]),
+            },
           },
-          // rvcRunMode: separate modes for Idle and Cleaning tags (cannot combine)
+          // RvcRunMode cluster with handler for changeToMode
           rvcRunMode: {
             currentMode: this.currentRunMode,
             supportedModes: [
@@ -173,6 +186,9 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
               { mode: MatterRvcRunMode.SupportedModes.MOP, label: 'Mop', modeTags: [{ value: MatterRvcRunMode.ModeTag.CLEANING }] },
               { mode: MatterRvcRunMode.SupportedModes.VACUUM_AND_MOP, label: 'Vacuum and Mop', modeTags: [{ value: MatterRvcRunMode.ModeTag.CLEANING }] },
             ],
+            handlers: {
+              changeToMode: async (request: { newMode: number }) => this.handleRunModeCommand('changeToMode', [request.newMode]),
+            },
           },
           // powerSource: batChargeLevel as enum (OK=0, WARNING=1, CRITICAL=2)
           powerSource: {
