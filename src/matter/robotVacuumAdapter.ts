@@ -117,7 +117,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     try {
       const uuid = this.accessory.UUID;
 
-      // Register with proper cluster configurations that satisfy Matter.js validation
+      // Register with proper cluster configurations matching Homebridge Matter API interfaces
       await this.matterApi.registerPlatformAccessories('homebridge-smartthings-oauth-custom-hsk', 'HomeBridgeSmartThingsCustomHSK', [{
         UUID: uuid,
         displayName: this.context.label,
@@ -138,18 +138,18 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
           onOff: {
             onOff: this.currentPowerOn,
           },
-          // rvcOperationalState: must include error entry in supportedOperationalStates
+          // rvcOperationalState: use operationalStateList (not supportedOperationalStates)
           rvcOperationalState: {
             operationalState: this.currentOperationalState,
-            operationalError: MatterRvcOperationalState.OperationalError.NO_ERROR,
-            supportedOperationalStates: [
-              { operationalState: MatterRvcOperationalState.OperationalState.STOPPED, operationalError: MatterRvcOperationalState.OperationalError.NO_ERROR },
-              { operationalState: MatterRvcOperationalState.OperationalState.RUNNING, operationalError: MatterRvcOperationalState.OperationalError.NO_ERROR },
-              { operationalState: MatterRvcOperationalState.OperationalState.PAUSED, operationalError: MatterRvcOperationalState.OperationalError.NO_ERROR },
-              { operationalState: MatterRvcOperationalState.OperationalState.ERROR, operationalError: MatterRvcOperationalState.OperationalError.UNABLE_TO_START_OR_RESUME },
-              { operationalState: MatterRvcOperationalState.OperationalState.SEEKING_CHARGER, operationalError: MatterRvcOperationalState.OperationalError.NO_ERROR },
-              { operationalState: MatterRvcOperationalState.OperationalState.CHARGING, operationalError: MatterRvcOperationalState.OperationalError.NO_ERROR },
-              { operationalState: MatterRvcOperationalState.OperationalState.DOCKED, operationalError: MatterRvcOperationalState.OperationalError.NO_ERROR },
+            operationalError: { errorStateId: 0, errorStateLabel: 'No Error', errorStateDetails: '' },
+            operationalStateList: [
+              { operationalStateId: MatterRvcOperationalState.OperationalState.STOPPED, operationalStateLabel: 'Stopped' },
+              { operationalStateId: MatterRvcOperationalState.OperationalState.RUNNING, operationalStateLabel: 'Running' },
+              { operationalStateId: MatterRvcOperationalState.OperationalState.PAUSED, operationalStateLabel: 'Paused' },
+              { operationalStateId: MatterRvcOperationalState.OperationalState.ERROR, operationalStateLabel: 'Error' },
+              { operationalStateId: MatterRvcOperationalState.OperationalState.SEEKING_CHARGER, operationalStateLabel: 'Seeking Charger' },
+              { operationalStateId: MatterRvcOperationalState.OperationalState.CHARGING, operationalStateLabel: 'Charging' },
+              { operationalStateId: MatterRvcOperationalState.OperationalState.DOCKED, operationalStateLabel: 'Docked' },
             ],
           },
           // rvcCleanMode: supportedModes as struct array
@@ -163,16 +163,16 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
               { mode: MatterRvcCleanMode.SupportedModes.TURBO, label: 'Turbo' },
             ],
           },
-          // rvcRunMode: supportedModes must include at least one Idle mode tag
+          // rvcRunMode: supportedModes with modeTags including Idle (16384)
           rvcRunMode: {
             currentMode: this.currentRunMode,
             supportedModes: [
-              { mode: MatterRvcRunMode.SupportedModes.VACUUM, label: 'Vacuum', modeTags: [{ value: 0 }] }, // Idle tag
-              { mode: MatterRvcRunMode.SupportedModes.MOP, label: 'Mop', modeTags: [{ value: 0 }] },
-              { mode: MatterRvcRunMode.SupportedModes.VACUUM_AND_MOP, label: 'Vacuum and Mop', modeTags: [{ value: 0 }] },
+              { mode: MatterRvcRunMode.SupportedModes.VACUUM, label: 'Vacuum', modeTags: [{ value: 16384 }] }, // Idle tag
+              { mode: MatterRvcRunMode.SupportedModes.MOP, label: 'Mop', modeTags: [{ value: 16384 }] },
+              { mode: MatterRvcRunMode.SupportedModes.VACUUM_AND_MOP, label: 'Vacuum and Mop', modeTags: [{ value: 16384 }] },
             ],
           },
-          // powerSource: batChargeLevel as 0-100 percentage
+          // powerSource: batChargeLevel as uint8 (0-100)
           powerSource: {
             batChargeLevel: this.currentBatteryLevel,
             batChargeState: this.currentCharging ? MatterPowerSource.BatChargeState.CHARGING : MatterPowerSource.BatChargeState.NOT_CHARGING,
