@@ -141,7 +141,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
           // rvcOperationalState: operationalStateList must include Error state, no labels for standard states
           rvcOperationalState: {
             operationalState: this.currentOperationalState,
-            operationalError: { errorStateId: 0, errorStateLabel: '', errorStateDetails: '' },
+            operationalError: { errorStateId: MatterRvcOperationalState.OperationalError.NO_ERROR },
             operationalStateList: [
               { operationalStateId: MatterRvcOperationalState.OperationalState.STOPPED },
               { operationalStateId: MatterRvcOperationalState.OperationalState.RUNNING },

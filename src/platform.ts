@@ -503,6 +503,16 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
   }
 
   /**
+   * Check if a device supports Matter (and should skip HAP registration)
+   */
+  private isMatterSupportedDevice(device: any): boolean {
+    if (!this.matterEnabled) {
+      return false;
+    }
+    return this.isRobotVacuumDevice(device);
+  }
+
+  /**
    * Initialize Matter accessories for supported devices
    * Matter accessories are created independently from HomeKit accessories
    */
@@ -575,6 +585,21 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
       this.log.debug('DEVICE DATA: ' + JSON.stringify(device));
 
       if (!this.findSupportedCapability(device)) {
+        continue;
+      }
+
+      // Skip HomeKit registration for devices that will be exposed via Matter
+      if (this.isMatterSupportedDevice(device)) {
+        this.log.debug(`Skipping HomeKit registration for ${device.label} - will be exposed via Matter`);
+        // Still create MultiServiceAccessory for event handling but don't register HAP accessory
+        const existingAccessory = this.accessories.find(accessory => accessory.UUID === device.deviceId);
+        if (!existingAccessory) {
+          const accessory = new this.api.platformAccessory(device.label, device.deviceId);
+          accessory.context.device = device;
+          this.accessoryObjects.push(await this.createAccessoryObject(device, accessory));
+        } else {
+          this.accessoryObjects.push(await this.createAccessoryObject(device, existingAccessory));
+        }
         continue;
       }
 
