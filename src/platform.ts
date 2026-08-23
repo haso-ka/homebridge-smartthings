@@ -473,13 +473,20 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
 
   /**
    * Check if a device is a robot vacuum based on capabilities
+   * Supports both standard and Samsung custom (samsungce.) capabilities
    */
   private isRobotVacuumDevice(device: any): boolean {
-    const requiredCapabilities = ['robotCleanerOperatingState'];
+    const requiredCapabilities = [
+      'robotCleanerOperatingState',
+      'samsungce.robotCleanerOperatingState',
+    ];
     const optionalCapabilities = [
       'robotCleanerCleaningMode',
+      'samsungce.robotCleanerCleaningMode',
       'robotCleanerTurboMode',
+      'samsungce.robotCleanerTurboMode',
       'robotCleanerMovement',
+      'samsungce.robotCleanerMovement',
       'battery',
       'switch',
     ];
@@ -489,7 +496,7 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
       component.capabilities.forEach((cap: any) => deviceCapabilities.add(cap.id));
     });
 
-    const hasRequired = requiredCapabilities.every(cap => deviceCapabilities.has(cap));
+    const hasRequired = requiredCapabilities.some(cap => deviceCapabilities.has(cap));
     const hasOptional = optionalCapabilities.some(cap => deviceCapabilities.has(cap));
 
     return hasRequired && (hasOptional || deviceCapabilities.has('switch') || deviceCapabilities.has('battery'));

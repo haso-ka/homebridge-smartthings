@@ -15,9 +15,13 @@ import {
 
 const SMARTTHINGS_ROBOT_VACUUM_CAPABILITIES = [
   'robotCleanerOperatingState',
+  'samsungce.robotCleanerOperatingState',
   'robotCleanerCleaningMode',
+  'samsungce.robotCleanerCleaningMode',
   'robotCleanerTurboMode',
+  'samsungce.robotCleanerTurboMode',
   'robotCleanerMovement',
+  'samsungce.robotCleanerMovement',
   'battery',
   'switch',
 ] as const;
@@ -75,9 +79,13 @@ interface Switch {
 interface SmartThingsRobotVacuumStatus {
   main?: {
     robotCleanerOperatingState?: RobotCleanerOperatingState;
+    'samsungce.robotCleanerOperatingState'?: RobotCleanerOperatingState;
     robotCleanerCleaningMode?: RobotCleanerCleaningMode;
+    'samsungce.robotCleanerCleaningMode'?: RobotCleanerCleaningMode;
     robotCleanerTurboMode?: RobotCleanerTurboMode;
+    'samsungce.robotCleanerTurboMode'?: RobotCleanerTurboMode;
     robotCleanerMovement?: RobotCleanerMovement;
+    'samsungce.robotCleanerMovement'?: RobotCleanerMovement;
     battery?: Battery;
     switch?: Switch;
   };
@@ -222,20 +230,20 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
 
     switch (command) {
       case 'start':
-        success = await this.sendSmartThingsCommand('main', 'robotCleanerOperatingState', 'start');
+        success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerOperatingState', 'start');
         if (success) {
           this.currentOperationalState = MatterRvcOperationalState.OperationalState.RUNNING;
         }
         break;
       case 'pause':
-        success = await this.sendSmartThingsCommand('main', 'robotCleanerOperatingState', 'pause');
+        success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerOperatingState', 'pause');
         if (success) {
           this.currentOperationalState = MatterRvcOperationalState.OperationalState.PAUSED;
         }
         break;
       case 'goHome':
       case 'stop':
-        success = await this.sendSmartThingsCommand('main', 'robotCleanerOperatingState', 'goHome');
+        success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerOperatingState', 'goHome');
         if (success) {
           this.currentOperationalState = MatterRvcOperationalState.OperationalState.SEEKING_CHARGER;
         }
@@ -264,7 +272,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       return false;
     }
 
-    const success = await this.sendSmartThingsCommand('main', 'robotCleanerCleaningMode', 'setCleaningMode', [smartThingsMode]);
+    const success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningMode', 'setCleaningMode', [smartThingsMode]);
     if (success) {
       this.currentCleanMode = mode;
       this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.RvcCleanMode, { currentMode: mode });
@@ -285,7 +293,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       return false;
     }
 
-    const success = await this.sendSmartThingsCommand('main', 'robotCleanerMovement', 'setRobotCleanerMovement', [smartThingsMode]);
+    const success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerMovement', 'setRobotCleanerMovement', [smartThingsMode]);
     if (success) {
       this.currentRunMode = mode;
       this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.RvcRunMode, { currentMode: mode });
@@ -344,15 +352,19 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
 
     switch (capability) {
       case 'robotCleanerOperatingState':
+      case 'samsungce.robotCleanerOperatingState':
         this.handleOperatingStateEvent(attribute, value);
         break;
       case 'robotCleanerCleaningMode':
+      case 'samsungce.robotCleanerCleaningMode':
         this.handleCleaningModeEvent(attribute, value);
         break;
       case 'robotCleanerTurboMode':
+      case 'samsungce.robotCleanerTurboMode':
         this.handleTurboModeEvent(attribute, value);
         break;
       case 'robotCleanerMovement':
+      case 'samsungce.robotCleanerMovement':
         this.handleMovementEvent(attribute, value);
         break;
       case 'battery':
@@ -532,27 +544,33 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     const status = this.getDeviceStatus() as SmartThingsRobotVacuumStatus;
     const main = status.main || {};
 
-    if (main.robotCleanerOperatingState?.operatingState?.value) {
-      const mapped = this.mapSmartThingsOperatingStateToMatter(main.robotCleanerOperatingState.operatingState.value);
+    // Check both standard and samsungce capabilities
+    const operatingState = main.robotCleanerOperatingState ?? main['samsungce.robotCleanerOperatingState'];
+    const cleaningMode = main.robotCleanerCleaningMode ?? main['samsungce.robotCleanerCleaningMode'];
+    const turboMode = main.robotCleanerTurboMode ?? main['samsungce.robotCleanerTurboMode'];
+    const movement = main.robotCleanerMovement ?? main['samsungce.robotCleanerMovement'];
+
+    if (operatingState?.operatingState?.value) {
+      const mapped = this.mapSmartThingsOperatingStateToMatter(operatingState.operatingState.value);
       if (mapped !== undefined) {
         this.currentOperationalState = mapped;
       }
     }
 
-    if (main.robotCleanerCleaningMode?.robotCleanerCleaningMode?.value) {
-      const mapped = this.mapSmartThingsCleaningModeToMatter(main.robotCleanerCleaningMode.robotCleanerCleaningMode.value);
+    if (cleaningMode?.robotCleanerCleaningMode?.value) {
+      const mapped = this.mapSmartThingsCleaningModeToMatter(cleaningMode.robotCleanerCleaningMode.value);
       if (mapped !== undefined) {
         this.currentCleanMode = mapped;
       }
     }
 
-    if (main.robotCleanerTurboMode?.robotCleanerTurboMode?.value) {
-      const turbo = main.robotCleanerTurboMode.robotCleanerTurboMode.value;
+    if (turboMode?.robotCleanerTurboMode?.value) {
+      const turbo = turboMode.robotCleanerTurboMode.value;
       this.currentCleanMode = turbo === 'on' ? MatterRvcCleanMode.CurrentMode.TURBO : MatterRvcCleanMode.CurrentMode.AUTO;
     }
 
-    if (main.robotCleanerMovement?.robotCleanerMovement?.value) {
-      const mapped = this.mapSmartThingsMovementToMatter(main.robotCleanerMovement.robotCleanerMovement.value);
+    if (movement?.robotCleanerMovement?.value) {
+      const mapped = this.mapSmartThingsMovementToMatter(movement.robotCleanerMovement.value);
       if (mapped !== undefined) {
         this.currentRunMode = mapped;
       }
