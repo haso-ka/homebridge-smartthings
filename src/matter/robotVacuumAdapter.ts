@@ -103,6 +103,17 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
   private currentCharging = false;
   private currentPowerOn = false;
 
+  private generateProductId(deviceId: string): number {
+    // Generate a unique product ID from device ID hash
+    let hash = 0;
+    for (let i = 0; i < deviceId.length; i++) {
+      hash = ((hash << 5) - hash) + deviceId.charCodeAt(i);
+      hash |= 0; // Convert to 32-bit integer
+    }
+    // Ensure it's a valid 16-bit product ID (1-65535)
+    return (Math.abs(hash) % 65534) + 1;
+  }
+
   constructor(platform: API, log: Logger, multiServiceAccessory: MultiServiceAccessory) {
     super(platform, log, multiServiceAccessory);
     this.matterApi = (platform as any).matter || null;
@@ -132,10 +143,13 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
           basicInformation: {
             vendorName: this.context.manufacturerName || 'Samsung',
             productName: this.context.label,
-            productId: 0x0001,
+            // Use device-specific product ID for unique setup payload
+            productId: this.generateProductId(this.context.deviceId),
             deviceTypeId: 0x0001,
             softwareVersion: 1,
             softwareVersionString: this.context.firmwareRevision || '1.0',
+            // Unique discriminator per device for proper PASE commissioning
+            uniqueId: this.context.deviceId,
           },
           // OnOff cluster with handler for on/off commands
           onOff: {
