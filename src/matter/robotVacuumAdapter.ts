@@ -154,11 +154,11 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
           onOff: {
             onOff: this.currentPowerOn,
             handlers: {
-              on: async () => {
+              on: () => {
                 this.log.debug('[RobotVacuumAdapter] Matter on command received');
                 return this.handleOnOffCommand('on');
               },
-              off: async () => {
+              off: () => {
                 this.log.debug('[RobotVacuumAdapter] Matter off command received');
                 return this.handleOnOffCommand('off');
               },
@@ -178,15 +178,15 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
               { operationalStateId: MatterRvcOperationalState.OperationalState.DOCKED },
             ],
             handlers: {
-              start: async () => {
+              start: () => {
                 this.log.debug('[RobotVacuumAdapter] Matter start command received');
                 return this.handleOperationalStateCommand('start');
               },
-              pause: async () => {
+              pause: () => {
                 this.log.debug('[RobotVacuumAdapter] Matter pause command received');
                 return this.handleOperationalStateCommand('pause');
               },
-              goHome: async () => {
+              goHome: () => {
                 this.log.debug('[RobotVacuumAdapter] Matter goHome command received');
                 return this.handleOperationalStateCommand('goHome');
               },
@@ -203,7 +203,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
               { mode: MatterRvcCleanMode.SupportedModes.TURBO, label: 'Turbo', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
             ],
             handlers: {
-              changeToMode: async (request: { newMode: number }) => {
+              changeToMode: (request: { newMode: number }) => {
                 this.log.debug(`[RobotVacuumAdapter] Matter changeToMode command received for cleanMode: ${request.newMode}`);
                 return this.handleCleanModeCommand('changeToMode', [request.newMode]);
               },
@@ -218,7 +218,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
               { mode: MatterRvcRunMode.SupportedModes.VACUUM_AND_MOP, label: 'Vacuum and Mop', modeTags: [{ value: MatterRvcRunMode.ModeTag.CLEANING }] },
             ],
             handlers: {
-              changeToMode: async (request: { newMode: number }) => {
+              changeToMode: (request: { newMode: number }) => {
                 this.log.debug(`[RobotVacuumAdapter] Matter changeToMode command received for runMode: ${request.newMode}`);
                 return this.handleRunModeCommand('changeToMode', [request.newMode]);
               },

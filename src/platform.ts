@@ -581,9 +581,12 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
         continue;
       }
 
-      // Skip HomeKit registration for devices that will be exposed via Matter
-      if (this.isMatterSupportedDevice(device)) {
-        this.log.debug(`Skipping HomeKit registration for ${device.label} - will be exposed via Matter`);
+      // Skip HomeKit registration for devices that will be exposed via Matter (when publishMatterAsExternal is enabled)
+      const isMatterDevice = this.isMatterSupportedDevice(device);
+      const publishMatterAsExternal = isMatterDevice && this.config.publishMatterAsExternal !== false;
+      
+      if (publishMatterAsExternal) {
+        this.log.debug(`Skipping HomeKit registration for ${device.label} - will be exposed as external Matter accessory`);
         
         // Clean up existing HomeKit accessory if it exists (like TV does)
         const existingAccessory = this.accessories.find(accessory => accessory.UUID === device.deviceId);
@@ -598,6 +601,9 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
         accessory.context.device = device;
         this.accessoryObjects.push(await this.createAccessoryObject(device, accessory));
         continue;
+      } else if (isMatterDevice) {
+        // Matter supported but publishMatterAsExternal is disabled - register as regular HomeKit accessory
+        this.log.debug(`Matter supported for ${device.label} but publishMatterAsExternal is disabled - registering as HomeKit accessory`);
       }
 
       const isTv = TelevisionService.isTelevisionDevice(device)
