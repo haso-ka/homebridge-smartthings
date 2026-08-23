@@ -504,6 +504,7 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
 
   /**
    * Initialize Matter accessories for supported devices
+   * Matter accessories are created independently from HomeKit accessories
    */
   private async initializeMatterAccessories(devices: any[]): Promise<void> {
     for (const device of devices) {
@@ -512,12 +513,6 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
       }
 
       this.log.debug(`Found robot vacuum device for Matter: ${device.label} (${device.deviceId})`);
-
-      const existingAccessory = this.accessories.find(accessory => accessory.UUID === device.deviceId);
-      if (!existingAccessory) {
-        this.log.warn(`No HomeKit accessory found for Matter device ${device.label}, skipping`);
-        continue;
-      }
 
       const accObj = this.accessoryObjects.find(obj => obj.id === device.deviceId);
       if (!accObj) {
@@ -542,12 +537,18 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
           })),
         };
 
+        // Create a new PlatformAccessory for Matter (separate from HomeKit)
+        // Use a distinct UUID suffix to avoid collision with HomeKit accessory
+        const matterUuid = this.api.hap.uuid.generate(device.deviceId + '-matter');
+        const matterAccessory = new this.api.platformAccessory(device.label, matterUuid);
+        matterAccessory.context.device = device;
+
         const adapter = await matterRegistry.createAdapter(
           'RoboticVacuumCleaner',
           this.api,
           this.log,
           accObj,
-          existingAccessory,
+          matterAccessory,
           context
         );
 
