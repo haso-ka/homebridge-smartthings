@@ -1,15 +1,15 @@
 import { API, Logger } from 'homebridge';
-import { MultiServiceAccessory } from '../multiServiceAccessory';
-import type { ShortEvent } from '../webhook/subscriptionHandler';
+import { MultiServiceAccessory } from '../multiServiceAccessory.js';
+import type { ShortEvent } from '../webhook/subscriptionHandler.js';
 import {
   MatterAdapter,
   MatterDeviceContext,
   NormalizedMatterCommand,
   NormalizedMatterState,
-} from './matterTypes';
+} from './matterTypes.js';
 
 export abstract class BaseMatterAdapter implements MatterAdapter {
-  protected readonly platform: API;
+  protected readonly platform: any;
   protected readonly log: Logger;
   protected readonly multiServiceAccessory: MultiServiceAccessory;
   protected context: MatterDeviceContext | null = null;

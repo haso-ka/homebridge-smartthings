@@ -126,11 +126,12 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     }
 
     try {
-      // Generate UUID for Matter accessory
+      // Generate UUID for standalone Matter accessory (not tied to HAP accessory)
       const uuid = this.platform.hap.uuid.generate(this.context.deviceId + '-matter');
 
-      // Register Matter accessory using registerPlatformAccessories (Matter API)
-      await this.matterApi.registerPlatformAccessories('homebridge-smartthings-oauth-custom-hsk', 'HomeBridgeSmartThingsCustomHSK', [{
+      // Register as EXTERNAL Matter accessory (standalone, not bridged) for proper device icon
+      // Using publishExternalAccessories like TV does
+      await this.platform.api.publishExternalAccessories('homebridge-smartthings-oauth-custom-hsk', [{
         UUID: uuid,
         displayName: this.context.label,
         deviceType: this.matterApi.deviceTypes.RoboticVacuumCleaner,
