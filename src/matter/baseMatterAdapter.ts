@@ -1,4 +1,4 @@
-import { API, Logger, PlatformAccessory } from 'homebridge';
+import { API, Logger } from 'homebridge';
 import { MultiServiceAccessory } from '../multiServiceAccessory';
 import type { ShortEvent } from '../webhook/subscriptionHandler';
 import {
@@ -12,7 +12,6 @@ export abstract class BaseMatterAdapter implements MatterAdapter {
   protected readonly platform: API;
   protected readonly log: Logger;
   protected readonly multiServiceAccessory: MultiServiceAccessory;
-  protected accessory: PlatformAccessory | null = null;
   protected context: MatterDeviceContext | null = null;
   protected currentState: NormalizedMatterState = {};
 
@@ -25,8 +24,7 @@ export abstract class BaseMatterAdapter implements MatterAdapter {
     this.multiServiceAccessory = multiServiceAccessory;
   }
 
-  async initialize(accessory: PlatformAccessory, context: MatterDeviceContext): Promise<void> {
-    this.accessory = accessory;
+  async initialize(context: MatterDeviceContext): Promise<void> {
     this.context = context;
     this.currentState = this.getInitialState();
     await this.setupMatterAccessory();

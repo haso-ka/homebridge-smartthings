@@ -109,16 +109,18 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
   }
 
   protected async setupMatterAccessory(): Promise<void> {
-    if (!this.matterApi || !this.accessory || !this.context) {
-      this.log.warn('[RobotVacuumAdapter] Matter API not available or accessory not initialized');
+    if (!this.matterApi || !this.context) {
+      this.log.warn('[RobotVacuumAdapter] Matter API not available or context not initialized');
       return;
     }
 
     try {
-      const uuid = this.accessory.UUID;
+      // Generate UUID for standalone Matter accessory (not tied to HAP accessory)
+      const uuid = this.platform.hap.uuid.generate(this.context.deviceId + '-matter');
 
-      // Register with proper cluster configurations matching Homebridge Matter API interfaces
-      await this.matterApi.registerPlatformAccessories('homebridge-smartthings-oauth-custom-hsk', 'HomeBridgeSmartThingsCustomHSK', [{
+      // Register as standalone Matter accessory for proper device icon during pairing
+      // Using publishExternalAccessories for standalone Matter device (not bridged)
+      await this.matterApi.publishExternalAccessories([{
         UUID: uuid,
         displayName: this.context.label,
         deviceType: this.matterApi.deviceTypes.RoboticVacuumCleaner,
@@ -183,7 +185,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
         },
       }]);
 
-      this.log.info(`[RobotVacuumAdapter] Registered Matter accessory: ${this.context.label} (${uuid})`);
+      this.log.info(`[RobotVacuumAdapter] Registered standalone Matter accessory: ${this.context.label} (${uuid})`);
     } catch (error) {
       this.log.error(`[RobotVacuumAdapter] Failed to register Matter accessory: ${error}`);
     }

@@ -1,4 +1,4 @@
-import { API, Logger, PlatformAccessory } from 'homebridge';
+import { API, Logger } from 'homebridge';
 import { MultiServiceAccessory } from '../multiServiceAccessory';
 import type { ShortEvent } from '../webhook/subscriptionHandler';
 import {
@@ -33,7 +33,6 @@ export class MatterRegistry {
     platform: API,
     log: Logger,
     multiServiceAccessory: MultiServiceAccessory,
-    accessory: PlatformAccessory,
     context: MatterDeviceContext
   ): Promise<MatterAdapter | null> {
     const AdapterConstructor = this.adapters.get(deviceType);
@@ -42,7 +41,7 @@ export class MatterRegistry {
     }
 
     const adapter = new AdapterConstructor(platform, log, multiServiceAccessory);
-    await adapter.initialize(accessory, context);
+    await adapter.initialize(context);
     this.activeAdapters.set(context.deviceId, adapter);
     return adapter;
   }

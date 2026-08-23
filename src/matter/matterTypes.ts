@@ -1,4 +1,4 @@
-import { API, Logger, PlatformAccessory } from 'homebridge';
+import { API, Logger } from 'homebridge';
 import { MultiServiceAccessory } from '../multiServiceAccessory';
 import type { ShortEvent } from '../webhook/subscriptionHandler';
 
@@ -27,7 +27,7 @@ export interface MatterAdapter {
   readonly deviceType: string;
   readonly supportedCapabilities: string[];
 
-  initialize(accessory: PlatformAccessory, context: MatterDeviceContext): Promise<void>;
+  initialize(context: MatterDeviceContext): Promise<void>;
   handleCommand(command: NormalizedMatterCommand): Promise<boolean>;
   updateState(state: NormalizedMatterState): void;
   processEvent(event: ShortEvent): void;

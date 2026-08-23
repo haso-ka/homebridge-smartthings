@@ -547,18 +547,11 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
           })),
         };
 
-        // Create a new PlatformAccessory for Matter (separate from HomeKit)
-        // Use a distinct UUID suffix to avoid collision with HomeKit accessory
-        const matterUuid = this.api.hap.uuid.generate(device.deviceId + '-matter');
-        const matterAccessory = new this.api.platformAccessory(device.label, matterUuid);
-        matterAccessory.context.device = device;
-
         const adapter = await matterRegistry.createAdapter(
           'RoboticVacuumCleaner',
           this.api,
           this.log,
           accObj,
-          matterAccessory,
           context
         );
 
@@ -591,15 +584,19 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
       // Skip HomeKit registration for devices that will be exposed via Matter
       if (this.isMatterSupportedDevice(device)) {
         this.log.debug(`Skipping HomeKit registration for ${device.label} - will be exposed via Matter`);
-        // Still create MultiServiceAccessory for event handling but don't register HAP accessory
+        
+        // Clean up existing HomeKit accessory if it exists (like TV does)
         const existingAccessory = this.accessories.find(accessory => accessory.UUID === device.deviceId);
-        if (!existingAccessory) {
-          const accessory = new this.api.platformAccessory(device.label, device.deviceId);
-          accessory.context.device = device;
-          this.accessoryObjects.push(await this.createAccessoryObject(device, accessory));
-        } else {
-          this.accessoryObjects.push(await this.createAccessoryObject(device, existingAccessory));
+        if (existingAccessory) {
+          this.log.info(`Removing existing HomeKit accessory for ${device.label} - will use Matter instead`);
+          this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [existingAccessory]);
         }
+        
+        // Don't create PlatformAccessory for Matter devices - they'll be registered as standalone Matter devices
+        // Just create MultiServiceAccessory for event handling
+        const accessory = new this.api.platformAccessory(device.label, device.deviceId);
+        accessory.context.device = device;
+        this.accessoryObjects.push(await this.createAccessoryObject(device, accessory));
         continue;
       }
 
