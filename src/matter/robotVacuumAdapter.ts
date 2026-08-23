@@ -131,7 +131,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
 
       // Register as EXTERNAL Matter accessory (standalone, not bridged) for proper device icon
       // Using publishExternalAccessories like TV does
-      await this.platform.api.publishExternalAccessories('homebridge-smartthings-oauth-custom-hsk', [{
+      await this.platform.publishExternalAccessories('homebridge-smartthings-oauth-custom-hsk', [{
         UUID: uuid,
         displayName: this.context.label,
         deviceType: this.matterApi.deviceTypes.RoboticVacuumCleaner,
