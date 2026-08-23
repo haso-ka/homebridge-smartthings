@@ -592,8 +592,8 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
           this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [existingAccessory]);
         }
         
-        // Don't create PlatformAccessory for Matter devices - they'll be registered as standalone Matter devices
-        // Just create MultiServiceAccessory for event handling
+        // Do NOT create PlatformAccessory for Matter devices - they'll be registered as external Matter accessories
+        // Just create MultiServiceAccessory for event handling (using deviceId directly, no PlatformAccessory)
         const accessory = new this.api.platformAccessory(device.label, device.deviceId);
         accessory.context.device = device;
         this.accessoryObjects.push(await this.createAccessoryObject(device, accessory));

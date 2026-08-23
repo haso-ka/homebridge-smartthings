@@ -129,9 +129,9 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       // Generate UUID for standalone Matter accessory (not tied to HAP accessory)
       const uuid = this.platform.hap.uuid.generate(this.context.deviceId + '-matter');
 
-      // Register as standalone Matter accessory for proper device icon during pairing
-      // Using registerPlatformAccessories for Matter accessory
-      await this.matterApi.registerPlatformAccessories('homebridge-smartthings-oauth-custom-hsk', 'HomeBridgeSmartThingsCustomHSK', [{
+      // Register as EXTERNAL Matter accessory (standalone, not bridged) for proper device icon
+      // Using publishExternalAccessories like TV does
+      await this.matterApi.publishExternalAccessories([{
         UUID: uuid,
         displayName: this.context.label,
         deviceType: this.matterApi.deviceTypes.RoboticVacuumCleaner,
@@ -155,8 +155,8 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
           onOff: {
             onOff: this.currentPowerOn,
             handlers: {
-              on: async () => this.handleOnOffCommand('on'),
-              off: async () => this.handleOnOffCommand('off'),
+              on: () => this.handleOnOffCommand('on'),
+              off: () => this.handleOnOffCommand('off'),
             },
           },
           // RvcOperationalState cluster with handlers for start/pause/goHome
@@ -173,9 +173,9 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
               { operationalStateId: MatterRvcOperationalState.OperationalState.DOCKED },
             ],
             handlers: {
-              start: async () => this.handleOperationalStateCommand('start'),
-              pause: async () => this.handleOperationalStateCommand('pause'),
-              goHome: async () => this.handleOperationalStateCommand('goHome'),
+              start: () => this.handleOperationalStateCommand('start'),
+              pause: () => this.handleOperationalStateCommand('pause'),
+              goHome: () => this.handleOperationalStateCommand('goHome'),
             },
           },
           // RvcCleanMode cluster with handler for changeToMode
@@ -189,7 +189,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
               { mode: MatterRvcCleanMode.SupportedModes.TURBO, label: 'Turbo', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
             ],
             handlers: {
-              changeToMode: async (request: { newMode: number }) => this.handleCleanModeCommand('changeToMode', [request.newMode]),
+              changeToMode: (request: { newMode: number }) => this.handleCleanModeCommand('changeToMode', [request.newMode]),
             },
           },
           // RvcRunMode cluster with handler for changeToMode
@@ -201,7 +201,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
               { mode: MatterRvcRunMode.SupportedModes.VACUUM_AND_MOP, label: 'Vacuum and Mop', modeTags: [{ value: MatterRvcRunMode.ModeTag.CLEANING }] },
             ],
             handlers: {
-              changeToMode: async (request: { newMode: number }) => this.handleRunModeCommand('changeToMode', [request.newMode]),
+              changeToMode: (request: { newMode: number }) => this.handleRunModeCommand('changeToMode', [request.newMode]),
             },
           },
           // powerSource: batChargeLevel as enum (OK=0, WARNING=1, CRITICAL=2)
@@ -215,7 +215,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
         },
       }]);
 
-      this.log.info(`[RobotVacuumAdapter] Registered standalone Matter accessory: ${this.context.label} (${uuid})`);
+      this.log.info(`[RobotVacuumAdapter] Published external Matter accessory: ${this.context.label} (${uuid})`);
     } catch (error) {
       this.log.error(`[RobotVacuumAdapter] Failed to register Matter accessory: ${error}`);
     }
