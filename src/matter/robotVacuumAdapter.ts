@@ -126,12 +126,11 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     }
 
     try {
-      // Generate UUID for standalone Matter accessory (not tied to HAP accessory)
+      // Generate UUID for Matter accessory
       const uuid = this.platform.hap.uuid.generate(this.context.deviceId + '-matter');
 
-      // Register as EXTERNAL Matter accessory (standalone, not bridged) for proper device icon
-      // Using publishExternalAccessories like TV does
-      await this.matterApi.publishExternalAccessories([{
+      // Register Matter accessory using registerPlatformAccessories (Matter API)
+      await this.matterApi.registerPlatformAccessories('homebridge-smartthings-oauth-custom-hsk', 'HomeBridgeSmartThingsCustomHSK', [{
         UUID: uuid,
         displayName: this.context.label,
         deviceType: this.matterApi.deviceTypes.RoboticVacuumCleaner,
@@ -155,8 +154,14 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
           onOff: {
             onOff: this.currentPowerOn,
             handlers: {
-              on: () => this.handleOnOffCommand('on'),
-              off: () => this.handleOnOffCommand('off'),
+              on: async () => {
+                this.log.debug('[RobotVacuumAdapter] Matter on command received');
+                return this.handleOnOffCommand('on');
+              },
+              off: async () => {
+                this.log.debug('[RobotVacuumAdapter] Matter off command received');
+                return this.handleOnOffCommand('off');
+              },
             },
           },
           // RvcOperationalState cluster with handlers for start/pause/goHome
@@ -173,9 +178,18 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
               { operationalStateId: MatterRvcOperationalState.OperationalState.DOCKED },
             ],
             handlers: {
-              start: () => this.handleOperationalStateCommand('start'),
-              pause: () => this.handleOperationalStateCommand('pause'),
-              goHome: () => this.handleOperationalStateCommand('goHome'),
+              start: async () => {
+                this.log.debug('[RobotVacuumAdapter] Matter start command received');
+                return this.handleOperationalStateCommand('start');
+              },
+              pause: async () => {
+                this.log.debug('[RobotVacuumAdapter] Matter pause command received');
+                return this.handleOperationalStateCommand('pause');
+              },
+              goHome: async () => {
+                this.log.debug('[RobotVacuumAdapter] Matter goHome command received');
+                return this.handleOperationalStateCommand('goHome');
+              },
             },
           },
           // RvcCleanMode cluster with handler for changeToMode
@@ -189,7 +203,10 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
               { mode: MatterRvcCleanMode.SupportedModes.TURBO, label: 'Turbo', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
             ],
             handlers: {
-              changeToMode: (request: { newMode: number }) => this.handleCleanModeCommand('changeToMode', [request.newMode]),
+              changeToMode: async (request: { newMode: number }) => {
+                this.log.debug(`[RobotVacuumAdapter] Matter changeToMode command received for cleanMode: ${request.newMode}`);
+                return this.handleCleanModeCommand('changeToMode', [request.newMode]);
+              },
             },
           },
           // RvcRunMode cluster with handler for changeToMode
@@ -201,7 +218,10 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
               { mode: MatterRvcRunMode.SupportedModes.VACUUM_AND_MOP, label: 'Vacuum and Mop', modeTags: [{ value: MatterRvcRunMode.ModeTag.CLEANING }] },
             ],
             handlers: {
-              changeToMode: (request: { newMode: number }) => this.handleRunModeCommand('changeToMode', [request.newMode]),
+              changeToMode: async (request: { newMode: number }) => {
+                this.log.debug(`[RobotVacuumAdapter] Matter changeToMode command received for runMode: ${request.newMode}`);
+                return this.handleRunModeCommand('changeToMode', [request.newMode]);
+              },
             },
           },
           // powerSource: batChargeLevel as enum (OK=0, WARNING=1, CRITICAL=2)
@@ -287,6 +307,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
   }
 
   private async handleOnOffCommand(command: string): Promise<boolean> {
+    this.log.debug(`[RobotVacuumAdapter] handleOnOffCommand called with: ${command}`);
     const targetState = command === 'on';
     this.currentPowerOn = targetState;
 
@@ -299,6 +320,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
   }
 
   private async handleOperationalStateCommand(command: string): Promise<boolean> {
+    this.log.debug(`[RobotVacuumAdapter] handleOperationalStateCommand called with: ${command}`);
     let success = false;
 
     switch (command) {
@@ -333,6 +355,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
   }
 
   private async handleCleanModeCommand(command: string, args?: unknown[]): Promise<boolean> {
+    this.log.debug(`[RobotVacuumAdapter] handleCleanModeCommand called with: ${command}, args: ${JSON.stringify(args)}`);
     if (command !== 'changeToMode' || !args || args.length === 0) {
       return false;
     }
@@ -354,6 +377,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
   }
 
   private async handleRunModeCommand(command: string, args?: unknown[]): Promise<boolean> {
+    this.log.debug(`[RobotVacuumAdapter] handleRunModeCommand called with: ${command}, args: ${JSON.stringify(args)}`);
     if (command !== 'changeToMode' || !args || args.length === 0) {
       return false;
     }
