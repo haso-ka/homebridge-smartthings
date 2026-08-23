@@ -2,6 +2,7 @@ import { IKHomeBridgeHomebridgePlatform } from '../platform';
 import { Logger } from 'homebridge';
 import { MultiServiceAccessory } from '../multiServiceAccessory';
 import { WebhookServer } from './webhookServer';
+import { matterRegistry } from '../matter';
 
 export interface ShortEvent {
   deviceId: string;
@@ -27,10 +28,18 @@ export class SubscriptionHandler {
     this.webhookServer.addEventHandler(this.handleDeviceEvent.bind(this));
   }
 
+  public updateDevices(devices: MultiServiceAccessory[]): void {
+    this.devices = devices;
+  }
+
   private handleDeviceEvent(event: ShortEvent): void {
+    // Forward to HomeKit services
     const device = this.devices.find(device => device.id === event.deviceId);
     if (device) {
       device.processEvent(event);
     }
+
+    // Forward to Matter adapters
+    matterRegistry.processEvent(event.deviceId, event);
   }
 }

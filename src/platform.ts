@@ -19,6 +19,7 @@ import {
   hasDisabledComponentsCapability,
   hasRefrigeratorOcfDriver,
 } from './util/samsungRefrigerator';
+import { matterRegistry } from './matter';
 
 /**
  * HomebridgePlatform
@@ -58,6 +59,10 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
   // Used by unregisterDevices() to skip TVs whose bridged cache entries were just
   // unregistered as part of the bridged → external migration (issue #31).
   private externalTvUuids: Set<string> = new Set();
+
+  // Matter support
+  private matterEnabled = false;
+  private matterAccessoryObjects: Map<string, MultiServiceAccessory> = new Map();
 
   constructor(
     public readonly log: Logger,
@@ -176,6 +181,13 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
           accObj.samsungWebSocket.destroy();
         }
       }
+      // Clean up Matter accessories
+      for (const [deviceId, accObj] of this.matterAccessoryObjects) {
+        if (accObj.samsungWebSocket) {
+          accObj.samsungWebSocket.destroy();
+        }
+        matterRegistry.removeAdapter(deviceId);
+      }
     });
 
     this.api.on('didFinishLaunching', async () => {
@@ -220,6 +232,17 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
           }
           await this.discoverDevices(devices);
           this.unregisterDevices(devices);
+
+          // Initialize Matter accessories if enabled and supported
+          this.matterEnabled = !!(this.api as any).matter && this.config.enableMatter !== false;
+          if (this.matterEnabled) {
+            this.log.info('Matter support enabled — initializing Matter accessories');
+            await this.initializeMatterAccessories(devices);
+          } else if ((this.api as any).matter) {
+            this.log.info('Matter is available but disabled via config (enableMatter: false)');
+          } else {
+            this.log.debug('Matter not enabled on this bridge — skipping Matter accessory creation');
+          }
 
           // Register Art Mode accessories for configured Frame TVs
           this.registerArtModeAccessories();
@@ -445,6 +468,89 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
 
     if (accessoriesToRemove.length > 0) {
       this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, accessoriesToRemove);
+    }
+  }
+
+  /**
+   * Check if a device is a robot vacuum based on capabilities
+   */
+  private isRobotVacuumDevice(device: any): boolean {
+    const requiredCapabilities = ['robotCleanerOperatingState'];
+    const optionalCapabilities = [
+      'robotCleanerCleaningMode',
+      'robotCleanerTurboMode',
+      'robotCleanerMovement',
+      'battery',
+      'switch',
+    ];
+
+    const deviceCapabilities = new Set<string>();
+    device.components.forEach((component: any) => {
+      component.capabilities.forEach((cap: any) => deviceCapabilities.add(cap.id));
+    });
+
+    const hasRequired = requiredCapabilities.every(cap => deviceCapabilities.has(cap));
+    const hasOptional = optionalCapabilities.some(cap => deviceCapabilities.has(cap));
+
+    return hasRequired && (hasOptional || deviceCapabilities.has('switch') || deviceCapabilities.has('battery'));
+  }
+
+  /**
+   * Initialize Matter accessories for supported devices
+   */
+  private async initializeMatterAccessories(devices: any[]): Promise<void> {
+    for (const device of devices) {
+      if (!this.isRobotVacuumDevice(device)) {
+        continue;
+      }
+
+      this.log.debug(`Found robot vacuum device for Matter: ${device.label} (${device.deviceId})`);
+
+      const existingAccessory = this.accessories.find(accessory => accessory.UUID === device.deviceId);
+      if (!existingAccessory) {
+        this.log.warn(`No HomeKit accessory found for Matter device ${device.label}, skipping`);
+        continue;
+      }
+
+      const accObj = this.accessoryObjects.find(obj => obj.id === device.deviceId);
+      if (!accObj) {
+        this.log.warn(`No MultiServiceAccessory found for Matter device ${device.label}, skipping`);
+        continue;
+      }
+
+      try {
+        const context = {
+          deviceId: device.deviceId,
+          label: device.label,
+          manufacturerName: device.manufacturerName || 'Samsung',
+          model: device.modelName || 'SmartThings Robot Vacuum',
+          serialNumber: device.deviceId,
+          firmwareRevision: device.firmwareVersion || '1.0',
+          capabilities: Array.from(
+            new Set(device.components.flatMap((c: any) => c.capabilities.map((cap: any) => cap.id as string)))
+          ) as string[],
+          components: device.components.map((c: any) => ({
+            id: c.id,
+            capabilities: c.capabilities.map((cap: any) => cap.id as string),
+          })),
+        };
+
+        const adapter = await matterRegistry.createAdapter(
+          'RoboticVacuumCleaner',
+          this.api,
+          this.log,
+          accObj,
+          existingAccessory,
+          context
+        );
+
+        if (adapter) {
+          this.matterAccessoryObjects.set(device.deviceId, accObj);
+          this.log.info(`Successfully initialized Matter accessory for ${device.label}`);
+        }
+      } catch (error) {
+        this.log.error(`Failed to initialize Matter accessory for ${device.label}: ${error}`);
+      }
     }
   }
 
