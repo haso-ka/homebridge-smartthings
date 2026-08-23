@@ -117,6 +117,8 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     try {
       const uuid = this.accessory.UUID;
 
+      // Register with minimal clusters - let Matter.js create defaults for complex clusters
+      // Then update them after registration
       await this.matterApi.registerPlatformAccessories('homebridge-smartthings-oauth-custom-hsk', 'HomeBridgeSmartThingsCustomHSK', [{
         UUID: uuid,
         displayName: this.context.label,
@@ -137,50 +139,75 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
           onOff: {
             onOff: this.currentPowerOn,
           },
-          rvcOperationalState: {
-            operationalState: this.currentOperationalState,
-            operationalError: MatterRvcOperationalState.OperationalError.NO_ERROR,
-            supportedOperationalStates: [
-              { operationalState: MatterRvcOperationalState.OperationalState.STOPPED, operationalError: MatterRvcOperationalState.OperationalError.NO_ERROR },
-              { operationalState: MatterRvcOperationalState.OperationalState.RUNNING, operationalError: MatterRvcOperationalState.OperationalError.NO_ERROR },
-              { operationalState: MatterRvcOperationalState.OperationalState.PAUSED, operationalError: MatterRvcOperationalState.OperationalError.NO_ERROR },
-              { operationalState: MatterRvcOperationalState.OperationalState.ERROR, operationalError: MatterRvcOperationalState.OperationalError.UNABLE_TO_START_OR_RESUME },
-              { operationalState: MatterRvcOperationalState.OperationalState.SEEKING_CHARGER, operationalError: MatterRvcOperationalState.OperationalError.NO_ERROR },
-              { operationalState: MatterRvcOperationalState.OperationalState.CHARGING, operationalError: MatterRvcOperationalState.OperationalError.NO_ERROR },
-              { operationalState: MatterRvcOperationalState.OperationalState.DOCKED, operationalError: MatterRvcOperationalState.OperationalError.NO_ERROR },
-            ],
-          },
-          rvcCleanMode: {
-            currentMode: this.currentCleanMode,
-            supportedModes: [
-              { mode: MatterRvcCleanMode.SupportedModes.AUTO, label: 'Auto' },
-              { mode: MatterRvcCleanMode.SupportedModes.QUIET, label: 'Quiet' },
-              { mode: MatterRvcCleanMode.SupportedModes.DEEP, label: 'Deep' },
-              { mode: MatterRvcCleanMode.SupportedModes.SPOT, label: 'Spot' },
-              { mode: MatterRvcCleanMode.SupportedModes.TURBO, label: 'Turbo' },
-            ],
-          },
-          rvcRunMode: {
-            currentMode: this.currentRunMode,
-            supportedModes: [
-              { mode: MatterRvcRunMode.SupportedModes.VACUUM, label: 'Vacuum' },
-              { mode: MatterRvcRunMode.SupportedModes.MOP, label: 'Mop' },
-              { mode: MatterRvcRunMode.SupportedModes.VACUUM_AND_MOP, label: 'Vacuum and Mop' },
-            ],
-          },
-          powerSource: {
-            batChargeLevel: Math.min(10, Math.floor(this.currentBatteryLevel / 10)), // BatChargeLevel is 0-10 enum (10% increments)
-            batChargeState: this.currentCharging ? MatterPowerSource.BatChargeState.CHARGING : MatterPowerSource.BatChargeState.NOT_CHARGING,
-            powerSource: MatterPowerSource.PowerSource.BATTERY,
-            batReplacementNeeded: MatterPowerSource.BatReplacementNeeded,
-            batReplaceability: MatterPowerSource.BatReplaceability.NOT_REPLACEABLE,
-          },
         },
       }]);
+
+      // Update complex clusters after registration with proper Matter.js struct format
+      await this.updateMatterClustersAfterRegistration();
 
       this.log.info(`[RobotVacuumAdapter] Registered Matter accessory: ${this.context.label} (${uuid})`);
     } catch (error) {
       this.log.error(`[RobotVacuumAdapter] Failed to register Matter accessory: ${error}`);
+    }
+  }
+
+  private async updateMatterClustersAfterRegistration(): Promise<void> {
+    if (!this.matterApi || !this.context) {
+      return;
+    }
+
+    const deviceId = this.context.deviceId;
+
+    try {
+      // Update rvcOperationalState with proper supportedOperationalStates struct
+      await this.matterApi.updateAccessoryState(deviceId, MatterClusterNames.RvcOperationalState, {
+        operationalState: this.currentOperationalState,
+        operationalError: MatterRvcOperationalState.OperationalError.NO_ERROR,
+        supportedOperationalStates: [
+          { operationalState: MatterRvcOperationalState.OperationalState.STOPPED, operationalError: MatterRvcOperationalState.OperationalError.NO_ERROR },
+          { operationalState: MatterRvcOperationalState.OperationalState.RUNNING, operationalError: MatterRvcOperationalState.OperationalError.NO_ERROR },
+          { operationalState: MatterRvcOperationalState.OperationalState.PAUSED, operationalError: MatterRvcOperationalState.OperationalError.NO_ERROR },
+          { operationalState: MatterRvcOperationalState.OperationalState.ERROR, operationalError: MatterRvcOperationalState.OperationalError.UNABLE_TO_START_OR_RESUME },
+          { operationalState: MatterRvcOperationalState.OperationalState.SEEKING_CHARGER, operationalError: MatterRvcOperationalState.OperationalError.NO_ERROR },
+          { operationalState: MatterRvcOperationalState.OperationalState.CHARGING, operationalError: MatterRvcOperationalState.OperationalError.NO_ERROR },
+          { operationalState: MatterRvcOperationalState.OperationalState.DOCKED, operationalError: MatterRvcOperationalState.OperationalError.NO_ERROR },
+        ],
+      });
+
+      // Update rvcCleanMode with proper supportedModes struct
+      await this.matterApi.updateAccessoryState(deviceId, MatterClusterNames.RvcCleanMode, {
+        currentMode: this.currentCleanMode,
+        supportedModes: [
+          { mode: MatterRvcCleanMode.SupportedModes.AUTO, label: 'Auto' },
+          { mode: MatterRvcCleanMode.SupportedModes.QUIET, label: 'Quiet' },
+          { mode: MatterRvcCleanMode.SupportedModes.DEEP, label: 'Deep' },
+          { mode: MatterRvcCleanMode.SupportedModes.SPOT, label: 'Spot' },
+          { mode: MatterRvcCleanMode.SupportedModes.TURBO, label: 'Turbo' },
+        ],
+      });
+
+      // Update rvcRunMode with proper supportedModes struct
+      await this.matterApi.updateAccessoryState(deviceId, MatterClusterNames.RvcRunMode, {
+        currentMode: this.currentRunMode,
+        supportedModes: [
+          { mode: MatterRvcRunMode.SupportedModes.VACUUM, label: 'Vacuum' },
+          { mode: MatterRvcRunMode.SupportedModes.MOP, label: 'Mop' },
+          { mode: MatterRvcRunMode.SupportedModes.VACUUM_AND_MOP, label: 'Vacuum and Mop' },
+        ],
+      });
+
+      // Update powerSource - batChargeLevel uses 0-100 percentage (not enum)
+      await this.matterApi.updateAccessoryState(deviceId, MatterClusterNames.PowerSource, {
+        batChargeLevel: this.currentBatteryLevel,
+        batChargeState: this.currentCharging ? MatterPowerSource.BatChargeState.CHARGING : MatterPowerSource.BatChargeState.NOT_CHARGING,
+        powerSource: MatterPowerSource.PowerSource.BATTERY,
+        batReplacementNeeded: MatterPowerSource.BatReplacementNeeded,
+        batReplaceability: MatterPowerSource.BatReplaceability.NOT_REPLACEABLE,
+      });
+
+      this.log.debug('[RobotVacuumAdapter] Updated complex Matter clusters after registration');
+    } catch (error) {
+      this.log.error(`[RobotVacuumAdapter] Failed to update Matter clusters: ${error}`);
     }
   }
 
