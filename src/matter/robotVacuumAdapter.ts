@@ -181,6 +181,40 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
             batReplaceability: MatterPowerSource.BatReplaceability.NOT_REPLACEABLE,
           },
         },
+        handlers: {
+          onOff: {
+            on: async () => {
+              await this.handleOnOffCommand('on');
+            },
+            off: async () => {
+              await this.handleOnOffCommand('off');
+            },
+            toggle: async () => {
+              await this.handleOnOffCommand(this.currentPowerOn ? 'off' : 'on');
+            },
+          },
+          rvcOperationalState: {
+            pause: async () => {
+              await this.handleOperationalStateCommand('pause');
+            },
+            resume: async () => {
+              await this.handleOperationalStateCommand('start');
+            },
+            goHome: async () => {
+              await this.handleOperationalStateCommand('goHome');
+            },
+          },
+          rvcCleanMode: {
+            changeToMode: async (args: { newMode: number }) => {
+              await this.handleCleanModeCommand('changeToMode', [args.newMode]);
+            },
+          },
+          rvcRunMode: {
+            changeToMode: async (args: { newMode: number }) => {
+              await this.handleRunModeCommand('changeToMode', [args.newMode]);
+            },
+          },
+        },
       }]);
 
       this.log.info(`[RobotVacuumAdapter] Registered Matter accessory: ${this.context.label} (${uuid})`);
