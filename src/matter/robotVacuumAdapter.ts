@@ -152,13 +152,13 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
               { operationalStateId: MatterRvcOperationalState.OperationalState.DOCKED },
             ],
           },
-          // rvcCleanMode: supportedModes with Vacuum/Mop mode tags (RVC namespace: Vacuum=16385, Mop=16386)
+          // rvcCleanMode: supportedModes with Vacuum/Mop mode tags (RVC namespace: Vacuum=16385, Mop=16386, VacuumThenMop=16387)
           rvcCleanMode: {
             currentMode: this.currentCleanMode,
             supportedModes: [
               { mode: MatterRvcCleanMode.SupportedModes.AUTO, label: 'Auto', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
               { mode: MatterRvcCleanMode.SupportedModes.QUIET, label: 'Quiet', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
-              { mode: MatterRvcCleanMode.SupportedModes.DEEP, label: 'Deep', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
+              { mode: MatterRvcCleanMode.SupportedModes.DEEP, label: 'Deep', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }, { value: MatterRvcCleanMode.ModeTag.VACUUM_THEN_MOP }] },
               { mode: MatterRvcCleanMode.SupportedModes.SPOT, label: 'Spot', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
               { mode: MatterRvcCleanMode.SupportedModes.TURBO, label: 'Turbo', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
             ],
@@ -595,6 +595,8 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       selectiveRoom: MatterRvcCleanMode.CurrentMode.SELECTIVE_ROOM,
       thorough: MatterRvcCleanMode.CurrentMode.THOROUGH,
       turbo: MatterRvcCleanMode.CurrentMode.TURBO,
+      vacuumAndMop: MatterRvcCleanMode.CurrentMode.DEEP,
+      'vacuum_and_mop': MatterRvcCleanMode.CurrentMode.DEEP,
     };
     return modeMap[mode.toLowerCase()];
   }
