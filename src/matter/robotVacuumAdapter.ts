@@ -152,7 +152,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
               { operationalStateId: MatterRvcOperationalState.OperationalState.DOCKED },
             ],
           },
-          // rvcCleanMode: supportedModes with Vacuum/Mop mode tags
+          // rvcCleanMode: supportedModes with Vacuum/Mop mode tags (RVC namespace: Vacuum=16385, Mop=16386)
           rvcCleanMode: {
             currentMode: this.currentCleanMode,
             supportedModes: [
@@ -163,11 +163,12 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
               { mode: MatterRvcCleanMode.SupportedModes.TURBO, label: 'Turbo', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
             ],
           },
-          // rvcRunMode: separate modes for Idle and Cleaning tags (cannot combine)
+          // rvcRunMode: need at least one Idle tag (16384) and one Cleaning tag (16385), mutually exclusive
           rvcRunMode: {
             currentMode: this.currentRunMode,
             supportedModes: [
-              { mode: MatterRvcRunMode.SupportedModes.VACUUM, label: 'Vacuum', modeTags: [{ value: MatterRvcRunMode.ModeTag.IDLE }] },
+              { mode: MatterRvcRunMode.SupportedModes.IDLE, label: 'Idle', modeTags: [{ value: MatterRvcRunMode.ModeTag.IDLE }] },
+              { mode: MatterRvcRunMode.SupportedModes.VACUUM, label: 'Vacuum', modeTags: [{ value: MatterRvcRunMode.ModeTag.CLEANING }] },
               { mode: MatterRvcRunMode.SupportedModes.MOP, label: 'Mop', modeTags: [{ value: MatterRvcRunMode.ModeTag.CLEANING }] },
               { mode: MatterRvcRunMode.SupportedModes.VACUUM_AND_MOP, label: 'Vacuum and Mop', modeTags: [{ value: MatterRvcRunMode.ModeTag.CLEANING }] },
             ],

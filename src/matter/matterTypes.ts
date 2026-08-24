@@ -119,23 +119,26 @@ export const MatterRvcCleanMode = {
     TURBO: 11,
   },
   ModeTag: {
-    VACUUM: 0,
-    MOP: 1,
+    VACUUM: 16385,
+    MOP: 16386,
+    VACUUM_THEN_MOP: 16387,
   },
 } as const;
 
 export const MatterRvcRunMode = {
   SupportedModes: {
-    VACUUM: 0,
-    MOP: 1,
-    VACUUM_AND_MOP: 2,
-    SWEEP: 3,
+    IDLE: 0,
+    VACUUM: 1,
+    MOP: 2,
+    VACUUM_AND_MOP: 3,
+    SWEEP: 4,
   },
   CurrentMode: {
-    VACUUM: 0,
-    MOP: 1,
-    VACUUM_AND_MOP: 2,
-    SWEEP: 3,
+    IDLE: 0,
+    VACUUM: 1,
+    MOP: 2,
+    VACUUM_AND_MOP: 3,
+    SWEEP: 4,
   },
   ModeTag: {
     IDLE: 16384,
