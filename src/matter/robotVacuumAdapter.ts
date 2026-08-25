@@ -95,13 +95,11 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
   readonly deviceType = 'RoboticVacuumCleaner';
   readonly supportedCapabilities = [...SMARTTHINGS_ROBOT_VACUUM_CAPABILITIES];
 
-  private matterApi: any = null;
-  private currentOperationalState: number = MatterRvcOperationalState.OperationalState.STOPPED;
-  private currentCleanMode: number = MatterRvcCleanMode.CurrentMode.AUTO;
-  private currentRunMode: number = MatterRvcRunMode.CurrentMode.VACUUM;
-  private currentBatteryLevel = 100;
-  private currentCharging = false;
-  private currentPowerOn = false;
+  private supportedOperatingCommands: string[] = [];
+
+  private supportedCleaningModes: string[] = [];
+
+  private supportedMovements: string[] = [];
 
   constructor(platform: API, log: Logger, multiServiceAccessory: MultiServiceAccessory) {
     super(platform, log, multiServiceAccessory);
@@ -305,25 +303,60 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     let success = false;
 
     switch (command) {
-      case 'start':
-        success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerOperatingState', 'start');
+      case 'start': {
+        // Try multiple command names for starting/resuming
+        const startCommands = ['start', 'resume'];
+        for (const cmd of startCommands) {
+          if (this.supportedOperatingCommands.length === 0 || this.supportedOperatingCommands.includes(cmd)) {
+            this.log.debug(`[RobotVacuumAdapter] Trying start command: ${cmd}`);
+            success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerOperatingState', cmd);
+            if (success) {
+              this.log.info(`[RobotVacuumAdapter] Start succeeded with command: ${cmd}`);
+              break;
+            }
+          }
+        }
         if (success) {
           this.currentOperationalState = MatterRvcOperationalState.OperationalState.RUNNING;
         }
         break;
-      case 'pause':
-        success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerOperatingState', 'pause');
+      }
+      case 'pause': {
+        const pauseCommands = ['pause'];
+        for (const cmd of pauseCommands) {
+          if (this.supportedOperatingCommands.length === 0 || this.supportedOperatingCommands.includes(cmd)) {
+            this.log.debug(`[RobotVacuumAdapter] Trying pause command: ${cmd}`);
+            success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerOperatingState', cmd);
+            if (success) {
+              this.log.info(`[RobotVacuumAdapter] Pause succeeded with command: ${cmd}`);
+              break;
+            }
+          }
+        }
         if (success) {
           this.currentOperationalState = MatterRvcOperationalState.OperationalState.PAUSED;
         }
         break;
+      }
       case 'goHome':
-      case 'stop':
-        success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerOperatingState', 'goHome');
+      case 'stop': {
+        // Try multiple command names for return to dock
+        const homeCommands = ['returnToBase', 'dock', 'goHome', 'returnToDock'];
+        for (const cmd of homeCommands) {
+          if (this.supportedOperatingCommands.length === 0 || this.supportedOperatingCommands.includes(cmd)) {
+            this.log.debug(`[RobotVacuumAdapter] Trying goHome command: ${cmd}`);
+            success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerOperatingState', cmd);
+            if (success) {
+              this.log.info(`[RobotVacuumAdapter] GoHome succeeded with command: ${cmd}`);
+              break;
+            }
+          }
+        }
         if (success) {
           this.currentOperationalState = MatterRvcOperationalState.OperationalState.SEEKING_CHARGER;
         }
         break;
+      }
       default:
         this.log.debug(`[RobotVacuumAdapter] Unknown operational state command: ${command}`);
         return false;
@@ -348,6 +381,12 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       return false;
     }
 
+    // Check if mode is supported by device
+    if (this.supportedCleaningModes.length > 0 && !this.supportedCleaningModes.includes(smartThingsMode)) {
+      this.log.warn(`[RobotVacuumAdapter] Cleaning mode ${smartThingsMode} not supported by device. Supported: ${this.supportedCleaningModes.join(', ')}`);
+      return false;
+    }
+
     const success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningMode', 'setCleaningMode', [smartThingsMode]);
     if (success) {
       this.currentCleanMode = mode;
@@ -366,6 +405,12 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
 
     if (!smartThingsMode) {
       this.log.warn(`[RobotVacuumAdapter] Unsupported Matter run mode: ${mode}`);
+      return false;
+    }
+
+    // Check if mode is supported by device
+    if (this.supportedMovements.length > 0 && !this.supportedMovements.includes(smartThingsMode)) {
+      this.log.warn(`[RobotVacuumAdapter] Movement mode ${smartThingsMode} not supported by device. Supported: ${this.supportedMovements.join(', ')}`);
       return false;
     }
 
@@ -453,6 +498,16 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
   }
 
   private handleOperatingStateEvent(attribute: string, value: unknown): void {
+    if (attribute === 'supportedOperatingStates') {
+      const states = value as string[];
+      this.log.debug(`[RobotVacuumAdapter] Supported operating states: ${states.join(', ')}`);
+      return;
+    }
+    if (attribute === 'supportedCommands') {
+      this.supportedOperatingCommands = value as string[];
+      this.log.info(`[RobotVacuumAdapter] Supported operating commands: ${this.supportedOperatingCommands.join(', ')}`);
+      return;
+    }
     if (attribute !== 'operatingState') {
       return;
     }
@@ -467,6 +522,11 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
   }
 
   private handleCleaningModeEvent(attribute: string, value: unknown): void {
+    if (attribute === 'supportedRobotCleanerCleaningModes') {
+      this.supportedCleaningModes = value as string[];
+      this.log.info(`[RobotVacuumAdapter] Supported cleaning modes: ${this.supportedCleaningModes.join(', ')}`);
+      return;
+    }
     if (attribute !== 'robotCleanerCleaningMode') {
       return;
     }
@@ -499,6 +559,11 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
   }
 
   private handleMovementEvent(attribute: string, value: unknown): void {
+    if (attribute === 'supportedRobotCleanerMovements') {
+      this.supportedMovements = value as string[];
+      this.log.info(`[RobotVacuumAdapter] Supported movements: ${this.supportedMovements.join(', ')}`);
+      return;
+    }
     if (attribute !== 'robotCleanerMovement') {
       return;
     }
@@ -641,6 +706,20 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     const cleaningMode = main.robotCleanerCleaningMode ?? main['samsungce.robotCleanerCleaningMode'];
     const turboMode = main.robotCleanerTurboMode ?? main['samsungce.robotCleanerTurboMode'];
     const movement = main.robotCleanerMovement ?? main['samsungce.robotCleanerMovement'];
+
+    // Capture supported commands/modes from device status
+    if (operatingState?.supportedCommands?.value) {
+      this.supportedOperatingCommands = operatingState.supportedCommands.value;
+      this.log.info(`[RobotVacuumAdapter] Initial supported operating commands: ${this.supportedOperatingCommands.join(', ')}`);
+    }
+    if (cleaningMode?.supportedRobotCleanerCleaningModes?.value) {
+      this.supportedCleaningModes = cleaningMode.supportedRobotCleanerCleaningModes.value;
+      this.log.info(`[RobotVacuumAdapter] Initial supported cleaning modes: ${this.supportedCleaningModes.join(', ')}`);
+    }
+    if (movement?.supportedRobotCleanerMovements?.value) {
+      this.supportedMovements = movement.supportedRobotCleanerMovements.value;
+      this.log.info(`[RobotVacuumAdapter] Initial supported movements: ${this.supportedMovements.join(', ')}`);
+    }
 
     if (operatingState?.operatingState?.value) {
       const mapped = this.mapSmartThingsOperatingStateToMatter(operatingState.operatingState.value);
