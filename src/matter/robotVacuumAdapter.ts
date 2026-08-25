@@ -95,6 +95,14 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
   readonly deviceType = 'RoboticVacuumCleaner';
   readonly supportedCapabilities = [...SMARTTHINGS_ROBOT_VACUUM_CAPABILITIES];
 
+  private matterApi: any = null;
+  private currentOperationalState: number = MatterRvcOperationalState.OperationalState.STOPPED;
+  private currentCleanMode: number = MatterRvcCleanMode.CurrentMode.AUTO;
+  private currentRunMode: number = MatterRvcRunMode.CurrentMode.IDLE;
+  private currentBatteryLevel = 100;
+  private currentCharging = false;
+  private currentPowerOn = false;
+
   private supportedOperatingCommands: string[] = [];
 
   private supportedCleaningModes: string[] = [];
