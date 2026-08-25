@@ -664,9 +664,12 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
   }
 
   private handleOperatingStateEvent(attribute: string, value: unknown): void {
+    // Log ALL attributes for this capability to see what device sends
+    this.log.info(`[RobotVacuumAdapter] OperatingState attr: ${attribute} = ${JSON.stringify(value)}`);
+    
     if (attribute === 'supportedOperatingStates') {
       const states = value as string[];
-      this.log.debug(`[RobotVacuumAdapter] Supported operating states: ${states.join(', ')}`);
+      this.log.info(`[RobotVacuumAdapter] Supported operating states: ${states.join(', ')}`);
       return;
     }
     if (attribute === 'supportedCommands') {
@@ -688,6 +691,9 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
   }
 
   private handleCleaningModeEvent(attribute: string, value: unknown): void {
+    // Log ALL attributes for this capability to see what device sends
+    this.log.info(`[RobotVacuumAdapter] CleaningMode attr: ${attribute} = ${JSON.stringify(value)}`);
+    
     if (attribute === 'supportedRobotCleanerCleaningModes') {
       this.supportedCleaningModes = value as string[];
       this.log.info(`[RobotVacuumAdapter] Supported cleaning modes: ${this.supportedCleaningModes.join(', ')}`);
@@ -725,6 +731,9 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
   }
 
   private handleMovementEvent(attribute: string, value: unknown): void {
+    // Log ALL attributes for this capability to see what device sends
+    this.log.info(`[RobotVacuumAdapter] Movement attr: ${attribute} = ${JSON.stringify(value)}`);
+    
     if (attribute === 'supportedRobotCleanerMovements') {
       this.supportedMovements = value as string[];
       this.log.info(`[RobotVacuumAdapter] Supported movements: ${this.supportedMovements.join(', ')}`);
@@ -867,11 +876,20 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     const status = this.getDeviceStatus() as SmartThingsRobotVacuumStatus;
     const main = status.main || {};
 
+    // Log the full main status to see what device returns
+    this.log.info(`[RobotVacuumAdapter] Initial device status (main): ${JSON.stringify(main)}`);
+
     // Check both standard and samsungce capabilities
     const operatingState = main.robotCleanerOperatingState ?? main['samsungce.robotCleanerOperatingState'];
     const cleaningMode = main.robotCleanerCleaningMode ?? main['samsungce.robotCleanerCleaningMode'];
     const turboMode = main.robotCleanerTurboMode ?? main['samsungce.robotCleanerTurboMode'];
     const movement = main.robotCleanerMovement ?? main['samsungce.robotCleanerMovement'];
+
+    // Log each capability object
+    this.log.info(`[RobotVacuumAdapter] operatingState: ${JSON.stringify(operatingState)}`);
+    this.log.info(`[RobotVacuumAdapter] cleaningMode: ${JSON.stringify(cleaningMode)}`);
+    this.log.info(`[RobotVacuumAdapter] movement: ${JSON.stringify(movement)}`);
+    this.log.info(`[RobotVacuumAdapter] turboMode: ${JSON.stringify(turboMode)}`);
 
     // Capture supported commands/modes from device status
     if (operatingState?.supportedCommands?.value) {
