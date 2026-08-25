@@ -371,30 +371,41 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       case 'goHome':
       case 'stop': {
         // Try multiple command names for return to dock
-        // Samsung robot vacuums may use different command names
+        // Samsung robot vacuums often use robotCleanerMovement capability for returnToBase
+        // not robotCleanerOperatingState
         const homeCommands = [
-          'returnToBase',   // Most common Samsung command
-          'returnToDock',   // Alternative
-          'dock',           // Short form
-          'goHome',         // Matter standard name
-          'home',           // Short form
-          'charge',         // Some devices use this
+          { capability: 'robotCleanerMovement', command: 'returnToBase' },
+          { capability: 'samsungce.robotCleanerMovement', command: 'returnToBase' },
+          { capability: 'robotCleanerOperatingState', command: 'returnToBase' },
+          { capability: 'samsungce.robotCleanerOperatingState', command: 'returnToBase' },
+          { capability: 'robotCleanerMovement', command: 'returnToDock' },
+          { capability: 'samsungce.robotCleanerMovement', command: 'returnToDock' },
+          { capability: 'robotCleanerMovement', command: 'dock' },
+          { capability: 'samsungce.robotCleanerMovement', command: 'dock' },
+          { capability: 'robotCleanerOperatingState', command: 'goHome' },
+          { capability: 'samsungce.robotCleanerOperatingState', command: 'goHome' },
+          { capability: 'robotCleanerOperatingState', command: 'home' },
+          { capability: 'samsungce.robotCleanerOperatingState', command: 'home' },
+          { capability: 'robotCleanerOperatingState', command: 'charge' },
+          { capability: 'samsungce.robotCleanerOperatingState', command: 'charge' },
         ];
-        // Also try with standard capability prefix (not samsungce)
-        const capabilities = ['samsungce.robotCleanerOperatingState', 'robotCleanerOperatingState'];
         
-        for (const capability of capabilities) {
-          for (const cmd of homeCommands) {
-            if (this.supportedOperatingCommands.length === 0 || this.supportedOperatingCommands.includes(cmd)) {
-              this.log.debug(`[RobotVacuumAdapter] Trying goHome command: ${capability}.${cmd}`);
-              success = await this.sendSmartThingsCommand('main', capability, cmd);
-              if (success) {
-                this.log.info(`[RobotVacuumAdapter] GoHome succeeded with command: ${capability}.${cmd}`);
-                break;
-              }
+        for (const { capability, command: cmd } of homeCommands) {
+          // Check if this command is supported (if we have the supported commands list)
+          // For movement commands, check against supportedMovements
+          const isSupported = this.supportedOperatingCommands.length === 0 || 
+                             this.supportedOperatingCommands.includes(cmd) ||
+                             this.supportedMovements.length === 0 ||
+                             this.supportedMovements.includes(cmd);
+          
+          if (isSupported) {
+            this.log.debug(`[RobotVacuumAdapter] Trying goHome command: ${capability}.${cmd}`);
+            success = await this.sendSmartThingsCommand('main', capability, cmd);
+            if (success) {
+              this.log.info(`[RobotVacuumAdapter] GoHome succeeded with command: ${capability}.${cmd}`);
+              break;
             }
           }
-          if (success) break;
         }
         if (success) {
           this.currentOperationalState = MatterRvcOperationalState.OperationalState.SEEKING_CHARGER;
@@ -414,25 +425,36 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
 
   private async handleIdentifyCommand(identifyTime: number): Promise<boolean> {
     this.log.info(`[RobotVacuumAdapter] Identify command received, time: ${identifyTime}s`);
-    // Samsung robot vacuum uses a custom command for locate/find
-    // Try common Samsung commands for locate/find
-    const locateCommands = ['locate', 'find', 'playSound', 'startFindMe'];
-    for (const cmd of locateCommands) {
-      if (this.supportedOperatingCommands.length === 0 || this.supportedOperatingCommands.includes(cmd)) {
-        this.log.debug(`[RobotVacuumAdapter] Trying locate command: ${cmd}`);
-        const success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerOperatingState', cmd);
+    // Samsung robot vacuum locate/find commands might be on different capabilities
+    // Try various capabilities and commands
+    const locateAttempts = [
+      { capability: 'robotCleanerOperatingState', command: 'locate' },
+      { capability: 'samsungce.robotCleanerOperatingState', command: 'locate' },
+      { capability: 'robotCleanerOperatingState', command: 'find' },
+      { capability: 'samsungce.robotCleanerOperatingState', command: 'find' },
+      { capability: 'robotCleanerOperatingState', command: 'playSound' },
+      { capability: 'samsungce.robotCleanerOperatingState', command: 'playSound' },
+      { capability: 'robotCleanerOperatingState', command: 'startFindMe' },
+      { capability: 'samsungce.robotCleanerOperatingState', command: 'startFindMe' },
+      // Some devices might have a separate audio notification capability
+      { capability: 'audioNotification', command: 'playSound' },
+      { capability: 'samsungce.audioNotification', command: 'playSound' },
+    ];
+    
+    for (const { capability, command: cmd } of locateAttempts) {
+      const isSupported = this.supportedOperatingCommands.length === 0 || this.supportedOperatingCommands.includes(cmd);
+      
+      if (isSupported) {
+        this.log.debug(`[RobotVacuumAdapter] Trying locate command: ${capability}.${cmd}`);
+        const success = await this.sendSmartThingsCommand('main', capability, cmd);
         if (success) {
-          this.log.info(`[RobotVacuumAdapter] Locate succeeded with command: ${cmd}`);
+          this.log.info(`[RobotVacuumAdapter] Locate succeeded with command: ${capability}.${cmd}`);
           return true;
         }
       }
     }
-    // Fallback: try the standard capability
-    const success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerOperatingState', 'locate');
-    if (!success) {
-      this.log.warn('[RobotVacuumAdapter] Locate command failed - device may not support this feature');
-    }
-    return success;
+    this.log.warn('[RobotVacuumAdapter] Locate command failed - device may not support this feature');
+    return false;
   }
 
   private async handleTriggerEffectCommand(effectId: number): Promise<boolean> {
