@@ -147,6 +147,9 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
           onOff: {
             onOff: this.currentPowerOn,
           },
+          identify: {
+            identifyTime: 0,
+          },
           // rvcOperationalState: operationalStateList must include Error state, no labels for standard states
           rvcOperationalState: {
             operationalState: this.currentOperationalState,
@@ -212,6 +215,14 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
             },
             goHome: async () => {
               await this.handleOperationalStateCommand('goHome');
+            },
+          },
+          identify: {
+            identify: async (args: { identifyTime?: number }) => {
+              await this.handleIdentifyCommand(args.identifyTime ?? 10);
+            },
+            triggerEffect: async (args: { effectId: number; effectVariant?: number }) => {
+              await this.handleTriggerEffectCommand(args.effectId);
             },
           },
           rvcCleanMode: {
@@ -317,15 +328,19 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       case 'start': {
         // Try multiple command names for starting/resuming
         const startCommands = ['start', 'resume'];
-        for (const cmd of startCommands) {
-          if (this.supportedOperatingCommands.length === 0 || this.supportedOperatingCommands.includes(cmd)) {
-            this.log.debug(`[RobotVacuumAdapter] Trying start command: ${cmd}`);
-            success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerOperatingState', cmd);
-            if (success) {
-              this.log.info(`[RobotVacuumAdapter] Start succeeded with command: ${cmd}`);
-              break;
+        const capabilities = ['samsungce.robotCleanerOperatingState', 'robotCleanerOperatingState'];
+        for (const capability of capabilities) {
+          for (const cmd of startCommands) {
+            if (this.supportedOperatingCommands.length === 0 || this.supportedOperatingCommands.includes(cmd)) {
+              this.log.debug(`[RobotVacuumAdapter] Trying start command: ${capability}.${cmd}`);
+              success = await this.sendSmartThingsCommand('main', capability, cmd);
+              if (success) {
+                this.log.info(`[RobotVacuumAdapter] Start succeeded with command: ${capability}.${cmd}`);
+                break;
+              }
             }
           }
+          if (success) break;
         }
         if (success) {
           this.currentOperationalState = MatterRvcOperationalState.OperationalState.RUNNING;
@@ -334,15 +349,19 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       }
       case 'pause': {
         const pauseCommands = ['pause'];
-        for (const cmd of pauseCommands) {
-          if (this.supportedOperatingCommands.length === 0 || this.supportedOperatingCommands.includes(cmd)) {
-            this.log.debug(`[RobotVacuumAdapter] Trying pause command: ${cmd}`);
-            success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerOperatingState', cmd);
-            if (success) {
-              this.log.info(`[RobotVacuumAdapter] Pause succeeded with command: ${cmd}`);
-              break;
+        const capabilities = ['samsungce.robotCleanerOperatingState', 'robotCleanerOperatingState'];
+        for (const capability of capabilities) {
+          for (const cmd of pauseCommands) {
+            if (this.supportedOperatingCommands.length === 0 || this.supportedOperatingCommands.includes(cmd)) {
+              this.log.debug(`[RobotVacuumAdapter] Trying pause command: ${capability}.${cmd}`);
+              success = await this.sendSmartThingsCommand('main', capability, cmd);
+              if (success) {
+                this.log.info(`[RobotVacuumAdapter] Pause succeeded with command: ${capability}.${cmd}`);
+                break;
+              }
             }
           }
+          if (success) break;
         }
         if (success) {
           this.currentOperationalState = MatterRvcOperationalState.OperationalState.PAUSED;
@@ -352,16 +371,30 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       case 'goHome':
       case 'stop': {
         // Try multiple command names for return to dock
-        const homeCommands = ['returnToBase', 'dock', 'goHome', 'returnToDock'];
-        for (const cmd of homeCommands) {
-          if (this.supportedOperatingCommands.length === 0 || this.supportedOperatingCommands.includes(cmd)) {
-            this.log.debug(`[RobotVacuumAdapter] Trying goHome command: ${cmd}`);
-            success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerOperatingState', cmd);
-            if (success) {
-              this.log.info(`[RobotVacuumAdapter] GoHome succeeded with command: ${cmd}`);
-              break;
+        // Samsung robot vacuums may use different command names
+        const homeCommands = [
+          'returnToBase',   // Most common Samsung command
+          'returnToDock',   // Alternative
+          'dock',           // Short form
+          'goHome',         // Matter standard name
+          'home',           // Short form
+          'charge',         // Some devices use this
+        ];
+        // Also try with standard capability prefix (not samsungce)
+        const capabilities = ['samsungce.robotCleanerOperatingState', 'robotCleanerOperatingState'];
+        
+        for (const capability of capabilities) {
+          for (const cmd of homeCommands) {
+            if (this.supportedOperatingCommands.length === 0 || this.supportedOperatingCommands.includes(cmd)) {
+              this.log.debug(`[RobotVacuumAdapter] Trying goHome command: ${capability}.${cmd}`);
+              success = await this.sendSmartThingsCommand('main', capability, cmd);
+              if (success) {
+                this.log.info(`[RobotVacuumAdapter] GoHome succeeded with command: ${capability}.${cmd}`);
+                break;
+              }
             }
           }
+          if (success) break;
         }
         if (success) {
           this.currentOperationalState = MatterRvcOperationalState.OperationalState.SEEKING_CHARGER;
@@ -377,6 +410,36 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       this.pushOperationalState();
     }
     return success;
+  }
+
+  private async handleIdentifyCommand(identifyTime: number): Promise<boolean> {
+    this.log.info(`[RobotVacuumAdapter] Identify command received, time: ${identifyTime}s`);
+    // Samsung robot vacuum uses a custom command for locate/find
+    // Try common Samsung commands for locate/find
+    const locateCommands = ['locate', 'find', 'playSound', 'startFindMe'];
+    for (const cmd of locateCommands) {
+      if (this.supportedOperatingCommands.length === 0 || this.supportedOperatingCommands.includes(cmd)) {
+        this.log.debug(`[RobotVacuumAdapter] Trying locate command: ${cmd}`);
+        const success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerOperatingState', cmd);
+        if (success) {
+          this.log.info(`[RobotVacuumAdapter] Locate succeeded with command: ${cmd}`);
+          return true;
+        }
+      }
+    }
+    // Fallback: try the standard capability
+    const success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerOperatingState', 'locate');
+    if (!success) {
+      this.log.warn('[RobotVacuumAdapter] Locate command failed - device may not support this feature');
+    }
+    return success;
+  }
+
+  private async handleTriggerEffectCommand(effectId: number): Promise<boolean> {
+    this.log.info(`[RobotVacuumAdapter] TriggerEffect command received, effectId: ${effectId}`);
+    // Effect ID 0 = blink, 1 = breathe, 2 = okay, 3 = channel change, 4 = finish effect, 5 = stop effect
+    // For robot vacuum locate, we typically use a custom effect or the locate command
+    return this.handleIdentifyCommand(10);
   }
 
   private async handleCleanModeCommand(command: string, args?: unknown[]): Promise<boolean> {
