@@ -62,6 +62,9 @@ interface RobotCleanerMovement {
   robotCleanerMovement?: {
     value: string;
   };
+  supportedRobotCleanerMovements?: {
+    value: string[];
+  };
 }
 
 interface Battery {
