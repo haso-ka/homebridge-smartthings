@@ -874,16 +874,39 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
 
   getInitialState(): NormalizedMatterState {
     const status = this.getDeviceStatus() as SmartThingsRobotVacuumStatus;
+
+    // Log the FULL status to see actual structure
+    this.log.info(`[RobotVacuumAdapter] FULL device status: ${JSON.stringify(status)}`);
+
     const main = status.main || {};
 
-    // Log the full main status to see what device returns
-    this.log.info(`[RobotVacuumAdapter] Initial device status (main): ${JSON.stringify(main)}`);
+    // Log the FULL main component
+    this.log.info(`[RobotVacuumAdapter] FULL main component: ${JSON.stringify(main)}`);
 
-    // Check both standard and samsungce capabilities
-    const operatingState = main.robotCleanerOperatingState ?? main['samsungce.robotCleanerOperatingState'];
-    const cleaningMode = main.robotCleanerCleaningMode ?? main['samsungce.robotCleanerCleaningMode'];
-    const turboMode = main.robotCleanerTurboMode ?? main['samsungce.robotCleanerTurboMode'];
-    const movement = main.robotCleanerMovement ?? main['samsungce.robotCleanerMovement'];
+    // Also check ALL components in status
+    for (const [compId, compData] of Object.entries(status)) {
+      if (compId !== 'main') {
+        this.log.info(`[RobotVacuumAdapter] Component '${compId}': ${JSON.stringify(compData)}`);
+      }
+    }
+
+    // Check both standard and samsungce capabilities in ALL components
+    let operatingState = main.robotCleanerOperatingState ?? main['samsungce.robotCleanerOperatingState'];
+    let cleaningMode = main.robotCleanerCleaningMode ?? main['samsungce.robotCleanerCleaningMode'];
+    let turboMode = main.robotCleanerTurboMode ?? main['samsungce.robotCleanerTurboMode'];
+    let movement = main.robotCleanerMovement ?? main['samsungce.robotCleanerMovement'];
+
+    // Search other components if not found in main
+    if (!operatingState || !movement || !cleaningMode) {
+      for (const [, compData] of Object.entries(status)) {
+        const comp = compData as any;
+        if (!operatingState) operatingState = comp.robotCleanerOperatingState ?? comp['samsungce.robotCleanerOperatingState'];
+        if (!cleaningMode) cleaningMode = comp.robotCleanerCleaningMode ?? comp['samsungce.robotCleanerCleaningMode'];
+        if (!turboMode) turboMode = comp.robotCleanerTurboMode ?? comp['samsungce.robotCleanerTurboMode'];
+        if (!movement) movement = comp.robotCleanerMovement ?? comp['samsungce.robotCleanerMovement'];
+        if (operatingState && cleaningMode && turboMode && movement) break;
+      }
+    }
 
     // Log each capability object
     this.log.info(`[RobotVacuumAdapter] operatingState: ${JSON.stringify(operatingState)}`);
