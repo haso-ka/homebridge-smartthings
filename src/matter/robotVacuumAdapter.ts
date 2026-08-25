@@ -345,14 +345,14 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
             const isSupported = !hasSupportInfo || supportedPairs.has(pairKey);
             
             if (isSupported) {
-              this.log.debug(`[RobotVacuumAdapter] Trying start command: ${pairKey}`);
+              this.log.info(`[RobotVacuumAdapter] Trying start command: ${pairKey}`);
               success = await this.sendSmartThingsCommand('main', capability, cmd);
               if (success) {
                 this.log.info(`[RobotVacuumAdapter] Start succeeded with command: ${pairKey}`);
                 break;
               }
             } else {
-              this.log.debug(`[RobotVacuumAdapter] Skipping unsupported start command: ${pairKey}`);
+              this.log.info(`[RobotVacuumAdapter] Skipping unsupported start command: ${pairKey}`);
             }
           }
           if (success) break;
@@ -381,14 +381,14 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
             const isSupported = !hasSupportInfo || supportedPairs.has(pairKey);
             
             if (isSupported) {
-              this.log.debug(`[RobotVacuumAdapter] Trying pause command: ${pairKey}`);
+              this.log.info(`[RobotVacuumAdapter] Trying pause command: ${pairKey}`);
               success = await this.sendSmartThingsCommand('main', capability, cmd);
               if (success) {
                 this.log.info(`[RobotVacuumAdapter] Pause succeeded with command: ${pairKey}`);
                 break;
               }
             } else {
-              this.log.debug(`[RobotVacuumAdapter] Skipping unsupported pause command: ${pairKey}`);
+              this.log.info(`[RobotVacuumAdapter] Skipping unsupported pause command: ${pairKey}`);
             }
           }
           if (success) break;
@@ -442,12 +442,10 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
           supportedPairs.add(`samsungce.robotCleanerOperatingState.${cmd}`);
         }
         
-        // Log what we know about supported commands for debugging
-        if (this.supportedMovements.length > 0 || this.supportedOperatingCommands.length > 0) {
-          this.log.info(`[RobotVacuumAdapter] Supported movements: [${this.supportedMovements.join(', ')}]`);
-          this.log.info(`[RobotVacuumAdapter] Supported operating commands: [${this.supportedOperatingCommands.join(', ')}]`);
-          this.log.info(`[RobotVacuumAdapter] Supported pairs for goHome: [${[...supportedPairs].join(', ')}]`);
-        }
+        // Log what we know about supported commands for debugging - ALWAYS LOG AT INFO LEVEL
+        this.log.info(`[RobotVacuumAdapter] goHome called. Supported movements: [${this.supportedMovements.join(', ') || 'NONE'}]`);
+        this.log.info(`[RobotVacuumAdapter] Supported operating commands: [${this.supportedOperatingCommands.join(', ') || 'NONE'}]`);
+        this.log.info(`[RobotVacuumAdapter] Supported pairs for goHome: [${[...supportedPairs].join(', ') || 'NONE'}]`);
         
         for (const { capability, command: cmd } of homeCommands) {
           const pairKey = `${capability}.${cmd}`;
@@ -457,14 +455,14 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
           const isSupported = !hasSupportInfo || supportedPairs.has(pairKey);
           
           if (isSupported) {
-            this.log.debug(`[RobotVacuumAdapter] Trying goHome command: ${pairKey}`);
+            this.log.info(`[RobotVacuumAdapter] Trying goHome command: ${pairKey}`);
             success = await this.sendSmartThingsCommand('main', capability, cmd);
             if (success) {
               this.log.info(`[RobotVacuumAdapter] GoHome succeeded with command: ${pairKey}`);
               break;
             }
           } else {
-            this.log.debug(`[RobotVacuumAdapter] Skipping unsupported goHome command: ${pairKey}`);
+            this.log.info(`[RobotVacuumAdapter] Skipping unsupported goHome command: ${pairKey}`);
           }
         }
         if (success) {
@@ -512,14 +510,14 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       const isSupported = !hasSupportInfo || supportedPairs.has(pairKey);
       
       if (isSupported) {
-        this.log.debug(`[RobotVacuumAdapter] Trying locate command: ${pairKey}`);
+        this.log.info(`[RobotVacuumAdapter] Trying locate command: ${pairKey}`);
         const success = await this.sendSmartThingsCommand('main', capability, cmd);
         if (success) {
           this.log.info(`[RobotVacuumAdapter] Locate succeeded with command: ${pairKey}`);
           return true;
         }
       } else {
-        this.log.debug(`[RobotVacuumAdapter] Skipping unsupported locate command: ${pairKey}`);
+        this.log.info(`[RobotVacuumAdapter] Skipping unsupported locate command: ${pairKey}`);
       }
     }
     this.log.warn('[RobotVacuumAdapter] Locate command failed - device may not support this feature');
@@ -636,8 +634,8 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     const attribute = event.attribute;
     const value = event.value;
 
-    // Debug log all events to understand device capabilities
-    this.log.debug(`[RobotVacuumAdapter] Event: ${capability}.${attribute} = ${JSON.stringify(value)}`);
+    // Log all events to understand device capabilities - ALWAYS AT INFO LEVEL
+    this.log.info(`[RobotVacuumAdapter] Event: ${capability}.${attribute} = ${JSON.stringify(value)}`);
 
     switch (capability) {
       case 'robotCleanerOperatingState':
