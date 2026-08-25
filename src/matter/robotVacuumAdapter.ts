@@ -402,15 +402,31 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       case 'stop': {
         // Samsung robot vacuums use robotCleanerMovement capability for returnToBase
         // Try the most likely capability/command combo first
+        // Add more command variations based on SmartThings community findings
         const homeCommands = [
           // Primary: robotCleanerMovement capability (most common for Samsung)
           { capability: 'robotCleanerMovement', command: 'returnToBase' },
           { capability: 'samsungce.robotCleanerMovement', command: 'returnToBase' },
+          // Additional movement commands Samsung might use
+          { capability: 'robotCleanerMovement', command: 'dock' },
+          { capability: 'samsungce.robotCleanerMovement', command: 'dock' },
+          { capability: 'robotCleanerMovement', command: 'home' },
+          { capability: 'samsungce.robotCleanerMovement', command: 'home' },
+          { capability: 'robotCleanerMovement', command: 'charge' },
+          { capability: 'samsungce.robotCleanerMovement', command: 'charge' },
           // Fallback: robotCleanerOperatingState capability
           { capability: 'robotCleanerOperatingState', command: 'goHome' },
           { capability: 'samsungce.robotCleanerOperatingState', command: 'goHome' },
           { capability: 'robotCleanerOperatingState', command: 'returnToBase' },
           { capability: 'samsungce.robotCleanerOperatingState', command: 'returnToBase' },
+          { capability: 'robotCleanerOperatingState', command: 'returnToDock' },
+          { capability: 'samsungce.robotCleanerOperatingState', command: 'returnToDock' },
+          { capability: 'robotCleanerOperatingState', command: 'dock' },
+          { capability: 'samsungce.robotCleanerOperatingState', command: 'dock' },
+          { capability: 'robotCleanerOperatingState', command: 'home' },
+          { capability: 'samsungce.robotCleanerOperatingState', command: 'home' },
+          { capability: 'robotCleanerOperatingState', command: 'charge' },
+          { capability: 'samsungce.robotCleanerOperatingState', command: 'charge' },
         ];
         
         // Build a set of supported capability.command pairs for quick lookup
@@ -424,6 +440,13 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
         for (const cmd of this.supportedOperatingCommands) {
           supportedPairs.add(`robotCleanerOperatingState.${cmd}`);
           supportedPairs.add(`samsungce.robotCleanerOperatingState.${cmd}`);
+        }
+        
+        // Log what we know about supported commands for debugging
+        if (this.supportedMovements.length > 0 || this.supportedOperatingCommands.length > 0) {
+          this.log.info(`[RobotVacuumAdapter] Supported movements: [${this.supportedMovements.join(', ')}]`);
+          this.log.info(`[RobotVacuumAdapter] Supported operating commands: [${this.supportedOperatingCommands.join(', ')}]`);
+          this.log.info(`[RobotVacuumAdapter] Supported pairs for goHome: [${[...supportedPairs].join(', ')}]`);
         }
         
         for (const { capability, command: cmd } of homeCommands) {
@@ -612,6 +635,9 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     const capability = event.capability as SmartThingsRobotVacuumCapability;
     const attribute = event.attribute;
     const value = event.value;
+
+    // Debug log all events to understand device capabilities
+    this.log.debug(`[RobotVacuumAdapter] Event: ${capability}.${attribute} = ${JSON.stringify(value)}`);
 
     switch (capability) {
       case 'robotCleanerOperatingState':
