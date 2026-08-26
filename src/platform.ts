@@ -283,6 +283,16 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
   configureAccessory(accessory: PlatformAccessory) {
     this.log.info('Loading accessory from cache:', accessory.displayName);
 
+    // Check if this is a Matter-supported device (robot vacuum)
+    // If so, unregister it immediately since it should be exposed via Matter, not HAP
+    // We check capabilities directly since this.matterEnabled isn't set yet at this point
+    const device = accessory.context.device;
+    if (device && this.isRobotVacuumDevice(device)) {
+      this.log.info(`Unregistering cached Matter-supported accessory ${accessory.displayName} (will be exposed via Matter)`);
+      this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
+      return;
+    }
+
     // add the restored accessory to the accessories cache so we can track if it has already been registered
     this.accessories.push(accessory);
   }
@@ -459,6 +469,10 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
         // Don't re-unregister TVs that were just migrated to external accessories
         // in discoverDevices() — their bridged cache entry is already gone.
         if (this.externalTvUuids.has(accessory.UUID)) {
+          return;
+        }
+        // Don't unregister Matter-supported devices (handled in configureAccessory/discoverDevices)
+        if (this.isRobotVacuumDevice(accessory.context.device)) {
           return;
         }
         this.log.info('Will unregister ' + accessory.context.device.label);
