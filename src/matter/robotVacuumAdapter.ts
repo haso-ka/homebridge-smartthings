@@ -345,35 +345,24 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
 
     switch (command) {
       case 'start': {
-        // Samsung: try wakeup first (needed from idle/standby), then start or setOperatingState with 'cleaning'
+        // Samsung: use start or setOperatingState with 'cleaning'
         const capability = 'samsungce.robotCleanerOperatingState';
-        const commands = ['wakeup', 'start', 'setOperatingState'];
+        const commands = ['start', 'setOperatingState'];
         
         for (const cmd of commands) {
           this.log.info(`[RobotVacuumAdapter] Trying start command: ${capability}.${cmd}`);
           let cmdSuccess = false;
           
-          if (cmd === 'wakeup') {
-            cmdSuccess = await this.sendSmartThingsCommand('main', capability, 'wakeup');
-            // wakeup might succeed but not start cleaning, so continue to next command
-            if (cmdSuccess) {
-              this.log.info(`[RobotVacuumAdapter] Wakeup succeeded, proceeding to start...`);
-              // Small delay to let device wake up
-              await new Promise(resolve => setTimeout(resolve, 1000));
-            }
-          } else if (cmd === 'start') {
+          if (cmd === 'start') {
             cmdSuccess = await this.sendSmartThingsCommand('main', capability, 'start');
           } else if (cmd === 'setOperatingState') {
             cmdSuccess = await this.sendSmartThingsCommand('main', capability, 'setOperatingState', ['cleaning']);
           }
           
-          if (cmdSuccess && cmd !== 'wakeup') {
+          if (cmdSuccess) {
             this.log.info(`[RobotVacuumAdapter] Start succeeded with command: ${capability}.${cmd}`);
             success = true;
             break;
-          } else if (cmdSuccess && cmd === 'wakeup') {
-            // wakeup succeeded, continue to try start/setOperatingState
-            continue;
           }
         }
         if (success) {
@@ -382,34 +371,24 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
         break;
       }
       case 'resume': {
-        // Resume after pause - may need wakeup first if device went to deep sleep
+        // Resume after pause
         const capability = 'samsungce.robotCleanerOperatingState';
-        const commands = ['wakeup', 'resume', 'setOperatingState'];
+        const commands = ['resume', 'setOperatingState'];
         
         for (const cmd of commands) {
           this.log.info(`[RobotVacuumAdapter] Trying resume command: ${capability}.${cmd}`);
           let cmdSuccess = false;
           
-          if (cmd === 'wakeup') {
-            cmdSuccess = await this.sendSmartThingsCommand('main', capability, 'wakeup');
-            if (cmdSuccess) {
-              this.log.info(`[RobotVacuumAdapter] Wakeup succeeded, proceeding to resume...`);
-              await new Promise(resolve => setTimeout(resolve, 1000));
-            }
-          } else if (cmd === 'resume') {
+          if (cmd === 'resume') {
             cmdSuccess = await this.sendSmartThingsCommand('main', capability, 'resume');
           } else if (cmd === 'setOperatingState') {
             cmdSuccess = await this.sendSmartThingsCommand('main', capability, 'setOperatingState', ['cleaning']);
           }
           
-          if (cmdSuccess && cmd !== 'wakeup') {
+          if (cmdSuccess) {
             this.log.info(`[RobotVacuumAdapter] Resume succeeded with command: ${capability}.${cmd}`);
             success = true;
             break;
-          } else if (cmdSuccess && cmd === 'wakeup') {
-            this.log.info(`[RobotVacuumAdapter] Wakeup succeeded, proceeding to resume...`);
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            continue;
           }
         }
         if (success) {
