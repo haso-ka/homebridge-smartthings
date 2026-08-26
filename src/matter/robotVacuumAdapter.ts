@@ -521,22 +521,27 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
 
     // Matter spec: ChangeToMode with CLEANING tag mode should start cleaning
     // First change the movement mode
+    this.log.info(`[RobotVacuumAdapter] Trying setRobotCleanerMovement: ${smartThingsMode} (Matter mode: ${mode})`);
     const success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerMovement', 'setRobotCleanerMovement', [smartThingsMode]);
     
     if (success) {
       this.currentRunMode = mode;
       this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.RvcRunMode, { currentMode: mode });
+      this.log.info(`[RobotVacuumAdapter] setRobotCleanerMovement succeeded: ${smartThingsMode}`);
       
       // Matter spec: ChangeToMode with CLEANING tag should start cleaning
       // Send start command to actually begin cleaning
+      this.log.info(`[RobotVacuumAdapter] Trying start command after RunMode change`);
       const startSuccess = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerOperatingState', 'start');
       if (startSuccess) {
         this.log.info(`[RobotVacuumAdapter] RunMode changeToMode -> started cleaning via start command`);
         this.currentOperationalState = MatterRvcOperationalState.OperationalState.RUNNING;
         this.pushOperationalState();
       } else {
-        this.log.warn(`[RobotVacuumAdapter] RunMode changed but failed to start cleaning`);
+        this.log.warn(`[RobotVacuumAdapter] RunMode changed but failed to start cleaning (start command failed)`);
       }
+    } else {
+      this.log.warn(`[RobotVacuumAdapter] setRobotCleanerMovement FAILED: ${smartThingsMode} (Matter mode: ${mode}) - command returned false`);
     }
     return success;
   }
