@@ -60,9 +60,6 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
   // unregistered as part of the bridged → external migration (issue #31).
   private externalTvUuids: Set<string> = new Set();
 
-  // Track Matter-supported accessories restored from cache (for proper cleanup in discoverDevices)
-  private matterCachedAccessories: Map<string, PlatformAccessory> = new Map();
-
   // Matter support
   private matterEnabled = false;
   private matterAccessoryObjects: Map<string, MultiServiceAccessory> = new Map();
@@ -191,8 +188,6 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
         }
         matterRegistry.removeAdapter(deviceId);
       }
-      // Clear cached Matter accessories tracking
-      this.matterCachedAccessories.clear();
     });
 
     this.api.on('didFinishLaunching', async () => {
@@ -293,16 +288,6 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
    */
   configureAccessory(accessory: PlatformAccessory) {
     this.log.info('Loading accessory from cache:', accessory.displayName);
-
-    // Check if this is a Matter-supported device (robot vacuum)
-    // We check capabilities directly since this.matterEnabled isn't set yet at this point
-    const device = accessory.context.device;
-    if (device && this.isRobotVacuumDevice(device)) {
-      this.log.info(`Found cached Matter-supported accessory ${accessory.displayName}, tracking for cleanup`);
-      // Store for cleanup in discoverDevices - don't add to this.accessories
-      this.matterCachedAccessories.set(accessory.UUID, accessory);
-      return;
-    }
 
     // add the restored accessory to the accessories cache so we can track if it has already been registered
     this.accessories.push(accessory);
@@ -482,10 +467,6 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
         if (this.externalTvUuids.has(accessory.UUID)) {
           return;
         }
-        // Don't unregister Matter-supported devices (handled in configureAccessory/discoverDevices)
-        if (this.isRobotVacuumDevice(accessory.context.device)) {
-          return;
-        }
         this.log.info('Will unregister ' + accessory.context.device.label);
         accessoriesToRemove.push(accessory);
       }
@@ -616,28 +597,6 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
       // Skip HomeKit registration for devices that will be exposed via Matter
       if (this.isMatterSupportedDevice(device)) {
         this.log.debug(`Skipping HomeKit registration for ${device.label} - will be exposed via Matter`);
-        // Unregister any previously cached HAP accessory for this device (from matterCachedAccessories)
-        const cachedMatterAccessory = this.matterCachedAccessories.get(device.deviceId);
-        if (cachedMatterAccessory) {
-          this.log.info(`Unregistering cached Matter-supported accessory ${device.label} (now exposed via Matter)`);
-          // Strip all services except AccessoryInformation before unregistering to ensure no Switch service remains
-          const hap = this.api.hap;
-          const infoService = cachedMatterAccessory.getService(hap.Service.AccessoryInformation);
-          cachedMatterAccessory.services = infoService ? [infoService] : [];
-          this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [cachedMatterAccessory]);
-          this.matterCachedAccessories.delete(device.deviceId);
-        }
-        // Also check this.accessories (in case it was added there)
-        const existingAccessoryIndex = this.accessories.findIndex(accessory => accessory.UUID === device.deviceId);
-        if (existingAccessoryIndex !== -1) {
-          const existingAccessory = this.accessories[existingAccessoryIndex];
-          this.log.info(`Unregistering cached HAP accessory for ${device.label} (now exposed via Matter)`);
-          const hap = this.api.hap;
-          const infoService = existingAccessory.getService(hap.Service.AccessoryInformation);
-          existingAccessory.services = infoService ? [infoService] : [];
-          this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [existingAccessory]);
-          this.accessories.splice(existingAccessoryIndex, 1);
-        }
         // Create minimal MultiServiceAccessory for command sending (NO HAP services)
         // Do NOT call addComponent - that creates HAP services like Switch
         const accessory = new this.api.platformAccessory(device.label, device.deviceId);
