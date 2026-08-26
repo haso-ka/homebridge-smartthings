@@ -235,18 +235,24 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
           if (this.config.UnregisterAll) {
             this.unregisterDevices(devices, true);
           }
-          await this.discoverDevices(devices);
-          this.unregisterDevices(devices);
 
-          // Initialize Matter accessories if enabled and supported
+          // Initialize Matter support FIRST so discoverDevices can skip Matter devices
           this.matterEnabled = !!(this.api as any).matter && this.config.enableMatter !== false;
           if (this.matterEnabled) {
-            this.log.info('Matter support enabled — initializing Matter accessories');
-            await this.initializeMatterAccessories(devices);
+            this.log.info('Matter support enabled');
           } else if ((this.api as any).matter) {
             this.log.info('Matter is available but disabled via config (enableMatter: false)');
           } else {
             this.log.debug('Matter not enabled on this bridge — skipping Matter accessory creation');
+          }
+
+          await this.discoverDevices(devices);
+          this.unregisterDevices(devices);
+
+          // Initialize Matter accessories after device discovery
+          if (this.matterEnabled) {
+            this.log.info('Initializing Matter accessories');
+            await this.initializeMatterAccessories(devices);
           }
 
           // Register Art Mode accessories for configured Frame TVs
