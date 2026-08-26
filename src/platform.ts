@@ -591,15 +591,19 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
       // Skip HomeKit registration for devices that will be exposed via Matter
       if (this.isMatterSupportedDevice(device)) {
         this.log.debug(`Skipping HomeKit registration for ${device.label} - will be exposed via Matter`);
-        // Still create MultiServiceAccessory for event handling but don't register HAP accessory
-        const existingAccessory = this.accessories.find(accessory => accessory.UUID === device.deviceId);
-        if (!existingAccessory) {
-          const accessory = new this.api.platformAccessory(device.label, device.deviceId);
-          accessory.context.device = device;
-          this.accessoryObjects.push(await this.createAccessoryObject(device, accessory));
-        } else {
-          this.accessoryObjects.push(await this.createAccessoryObject(device, existingAccessory));
+        // Unregister any previously cached HAP accessory for this device
+        const existingAccessoryIndex = this.accessories.findIndex(accessory => accessory.UUID === device.deviceId);
+        if (existingAccessoryIndex !== -1) {
+          const existingAccessory = this.accessories[existingAccessoryIndex];
+          this.log.info(`Unregistering cached HAP accessory for ${device.label} (now exposed via Matter)`);
+          this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [existingAccessory]);
+          // Remove from accessories cache since it's no longer a HAP accessory
+          this.accessories.splice(existingAccessoryIndex, 1);
         }
+        // Still create MultiServiceAccessory for event handling but don't register HAP accessory
+        const accessory = new this.api.platformAccessory(device.label, device.deviceId);
+        accessory.context.device = device;
+        this.accessoryObjects.push(await this.createAccessoryObject(device, accessory));
         continue;
       }
 
