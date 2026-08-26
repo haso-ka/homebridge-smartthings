@@ -315,12 +315,27 @@ return mainComp.status as Record<string, any>;
           progress: [],
         };
       }
-      const supportedMaps = maps.map((m: any) => ({
+      let targetMaps = maps;
+      const currentMapId = (mapListStatus as any)?.currentMapId?.value
+        || (this.getMainStatus() as any)['samsungce.robotCleanerMapList']?.currentMapId?.value;
+      if (currentMapId) {
+        const found = maps.find((m: any) => String(m.id) === String(currentMapId));
+        if (found) {
+          targetMaps = [found];
+        }
+      } else {
+        targetMaps = [...maps].sort((a: any, b: any) => {
+          const aTime = new Date(a.updatedTime || a.createdTime || 0).getTime();
+          const bTime = new Date(b.updatedTime || b.createdTime || 0).getTime();
+          return bTime - aTime;
+        }).slice(0, 1);
+      }
+      const supportedMaps = targetMaps.map((m: any) => ({
         mapId: parseInt(m.id, 10) || 0,
         name: m.name || `Map ${m.id}`,
       }));
       const supportedAreas: any[] = [];
-      for (const map of maps) {
+      for (const map of targetMaps) {
         const mapId = parseInt(map.id, 10) || 0;
         const areaInfos = map.areaInfo || [];
         for (const area of areaInfos) {
@@ -358,7 +373,7 @@ return mainComp.status as Record<string, any>;
           }
         }
       }
-      this.log.info(`[RobotVacuumAdapter] ServiceArea supportedAreas: ${supportedAreas.length} areas from ${maps.length} maps`);
+      this.log.info(`[RobotVacuumAdapter] ServiceArea supportedAreas: ${supportedAreas.length} areas from ${targetMaps.length} maps (selected from ${maps.length} total)`);
       return {
         supportedMaps,
         supportedAreas,
