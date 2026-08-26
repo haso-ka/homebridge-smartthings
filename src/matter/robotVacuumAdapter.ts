@@ -306,15 +306,19 @@ return mainComp.status as Record<string, any>;
         maps = main['samsungce.robotCleanerMapList']?.maps?.value || [];
       }
       if (!maps || maps.length === 0) {
-        // still register empty ServiceArea for compliance if device supports map
         return {
+          supportedMaps: [],
           supportedAreas: [],
           selectedAreas: [],
           currentArea: null,
           estimatedEndTime: null,
-          progress: null,
+          progress: [],
         };
       }
+      const supportedMaps = maps.map((m: any) => ({
+        mapId: parseInt(m.id, 10) || 0,
+        name: m.name || `Map ${m.id}`,
+      }));
       const supportedAreas: any[] = [];
       for (const map of maps) {
         const mapId = parseInt(map.id, 10) || 0;
@@ -322,7 +326,7 @@ return mainComp.status as Record<string, any>;
         for (const area of areaInfos) {
           const areaId = parseInt(area.id, 10) || 0;
           supportedAreas.push({
-            areaId: mapId * 100 + areaId, // unique id combining map+area to avoid collision
+            areaId: mapId * 100 + areaId,
             mapId: mapId,
             areaInfo: {
               locationInfo: {
@@ -334,7 +338,6 @@ return mainComp.status as Record<string, any>;
             },
           });
         }
-        // also add objectInfo as areas if needed
         if (map.objectInfo) {
           for (const obj of map.objectInfo) {
             const objId = parseInt(obj.id, 10) || 0;
@@ -345,7 +348,7 @@ return mainComp.status as Record<string, any>;
                 locationInfo: {
                   locationName: obj.name,
                   floorNumber: null,
-                  areaType: 1, // landmark
+                  areaType: 1,
                 },
                 landmarkInfo: {
                   landmarkTag: 0,
@@ -357,11 +360,12 @@ return mainComp.status as Record<string, any>;
       }
       this.log.info(`[RobotVacuumAdapter] ServiceArea supportedAreas: ${supportedAreas.length} areas from ${maps.length} maps`);
       return {
+        supportedMaps,
         supportedAreas,
         selectedAreas: [],
         currentArea: null,
         estimatedEndTime: null,
-        progress: null,
+        progress: [],
       };
     } catch (e) {
       this.log.warn(`[RobotVacuumAdapter] Failed to build ServiceArea cluster: ${e}`);
