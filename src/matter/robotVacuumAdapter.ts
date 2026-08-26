@@ -229,6 +229,9 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
             },
           },
           rvcOperationalState: {
+            start: async () => {
+              await this.handleOperationalStateCommand('start');
+            },
             pause: async () => {
               await this.handleOperationalStateCommand('pause');
             },
