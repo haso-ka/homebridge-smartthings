@@ -600,10 +600,11 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
           // Remove from accessories cache since it's no longer a HAP accessory
           this.accessories.splice(existingAccessoryIndex, 1);
         }
-        // Still create MultiServiceAccessory for event handling but don't register HAP accessory
+        // Create minimal MultiServiceAccessory for command sending (NO HAP services)
+        // Do NOT call addComponent - that creates HAP services like Switch
         const accessory = new this.api.platformAccessory(device.label, device.deviceId);
         accessory.context.device = device;
-        this.accessoryObjects.push(await this.createAccessoryObject(device, accessory));
+        this.accessoryObjects.push(await this.createMatterAccessoryObject(device, accessory));
         continue;
       }
 
@@ -732,6 +733,19 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
       await acc.addComponent(component.id, component.capabilities.map((c) => c.id));
     }
 
+    return acc;
+  }
+
+  /**
+   * Create a minimal MultiServiceAccessory for Matter devices.
+   * Does NOT call addComponent, so no HAP services are created.
+   * Only used for sending commands to SmartThings via the Matter adapter.
+   */
+  async createMatterAccessoryObject(device, accessory): Promise<MultiServiceAccessory> {
+    const acc = new MultiServiceAccessory(this, accessory);
+    // Do NOT call addComponent - this prevents HAP services (Switch, etc.) from being created
+    // The Matter adapter will use acc.sendCommand() for SmartThings communication
+    // Events are handled via matterRegistry.processEvent() from webhook
     return acc;
   }
 
