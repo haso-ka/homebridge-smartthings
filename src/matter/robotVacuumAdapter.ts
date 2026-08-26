@@ -428,6 +428,33 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
         }
         break;
       }
+      case 'on': {
+        // Home app might send 'on' command via OnOff cluster
+        this.log.info(`[RobotVacuumAdapter] Received 'on' command, treating as start`);
+        const capability = 'samsungce.robotCleanerOperatingState';
+        const commands = ['start', 'setOperatingState'];
+        
+        for (const cmd of commands) {
+          this.log.info(`[RobotVacuumAdapter] Trying start command (from 'on'): ${capability}.${cmd}`);
+          let cmdSuccess = false;
+          
+          if (cmd === 'start') {
+            cmdSuccess = await this.sendSmartThingsCommand('main', capability, 'start');
+          } else if (cmd === 'setOperatingState') {
+            cmdSuccess = await this.sendSmartThingsCommand('main', capability, 'setOperatingState', ['cleaning']);
+          }
+          
+          if (cmdSuccess) {
+            this.log.info(`[RobotVacuumAdapter] Start (from 'on') succeeded with command: ${capability}.${cmd}`);
+            success = true;
+            break;
+          }
+        }
+        if (success) {
+          this.currentOperationalState = MatterRvcOperationalState.OperationalState.RUNNING;
+        }
+        break;
+      }
       case 'goHome':
       case 'stop': {
         // Samsung: use returnToHome command on samsungce.robotCleanerOperatingState
@@ -446,7 +473,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
         break;
       }
       default:
-        this.log.debug(`[RobotVacuumAdapter] Unknown operational state command: ${command}`);
+        this.log.info(`[RobotVacuumAdapter] Unknown operational state command: ${command}`);
         return false;
     }
 
