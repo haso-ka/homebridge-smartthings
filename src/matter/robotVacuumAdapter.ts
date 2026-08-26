@@ -341,6 +341,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
   }
 
   private async handleOperationalStateCommand(command: string): Promise<boolean> {
+    this.log.info(`[RobotVacuumAdapter] handleOperationalStateCommand called: command=${command}`);
     let success = false;
 
     switch (command) {
@@ -501,7 +502,9 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
   }
 
   private async handleRunModeCommand(command: string, args?: unknown[]): Promise<boolean> {
+    this.log.info(`[RobotVacuumAdapter] handleRunModeCommand called: command=${command}, args=${JSON.stringify(args)}`);
     if (command !== 'changeToMode' || !args || args.length === 0) {
+      this.log.warn(`[RobotVacuumAdapter] handleRunModeCommand invalid args: command=${command}, args=${JSON.stringify(args)}`);
       return false;
     }
 
