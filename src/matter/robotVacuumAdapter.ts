@@ -134,6 +134,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
   constructor(platform: API, log: Logger, multiServiceAccessory: MultiServiceAccessory) {
     super(platform, log, multiServiceAccessory);
     this.matterApi = (platform as any).matter || null;
+    this.log.info(`[RobotVacuumAdapter] Constructor: currentRunMode=${this.currentRunMode}, currentOperationalState=${this.currentOperationalState}`);
   }
 
   protected async setupMatterAccessory(): Promise<void> {
@@ -141,6 +142,8 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       this.log.warn('[RobotVacuumAdapter] Matter API not available or accessory not initialized');
       return;
     }
+
+    this.log.info(`[RobotVacuumAdapter] setupMatterAccessory: currentRunMode=${this.currentRunMode}, currentOperationalState=${this.currentOperationalState}`);
 
     try {
       const uuid = this.accessory.UUID;
@@ -1096,6 +1099,8 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     }
 
     this.currentCharging = this.currentOperationalState === MatterRvcOperationalState.OperationalState.CHARGING;
+
+    this.log.info(`[RobotVacuumAdapter] getInitialState returning: currentRunMode=${this.currentRunMode}, currentOperationalState=${this.currentOperationalState}, currentCleanMode=${this.currentCleanMode}, currentPowerOn=${this.currentPowerOn}`);
 
     return {
       [MatterClusterNames.OnOff]: { onOff: this.currentPowerOn },
