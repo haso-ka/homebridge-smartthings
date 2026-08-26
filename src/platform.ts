@@ -545,7 +545,7 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
           serialNumber: device.deviceId,
           firmwareRevision: device.firmwareVersion || '1.0',
           capabilities: Array.from(
-            new Set(device.components.flatMap((c: any) => c.capabilities.map((cap: any) => cap.id as string)))
+            new Set(device.components.flatMap((c: any) => c.capabilities.map((cap: any) => cap.id as string))),
           ) as string[],
           components: device.components.map((c: any) => ({
             id: c.id,
@@ -565,7 +565,7 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
           this.log,
           accObj,
           matterAccessory,
-          context
+          context,
         );
 
         if (adapter) {

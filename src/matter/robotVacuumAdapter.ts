@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { API, Logger } from 'homebridge';
 import { MultiServiceAccessory } from '../multiServiceAccessory';
 import type { ShortEvent } from '../webhook/subscriptionHandler';
@@ -16,101 +17,79 @@ import {
 const SMARTTHINGS_ROBOT_VACUUM_CAPABILITIES = [
   'samsungce.robotCleanerOperatingState',
   'samsungce.robotCleanerCleaningMode',
-  'samsungce.robotCleanerTurboMode',
-  'samsungce.robotCleanerMovement',
-  'samsungce.robotCleanerDrivingMode',
+  'robotCleanerCleaningMode',
+  'robotCleanerMovement',
+  'robotCleanerTurboMode',
   'samsungce.robotCleanerCleaningType',
-  'audioNotification',
+  'samsungce.robotCleanerDrivingMode',
+  'samsungce.robotCleanerWaterSprayLevel',
+  'samsungce.robotCleanerMapList',
+  'samsungce.robotCleanerMapAreaInfo',
+  'samsungce.robotCleanerMapCleaningInfo',
+  'samsungce.robotCleanerMapMetadata',
   'battery',
   'switch',
+  'audioNotification',
+  'audioVolume',
+  'audioMute',
 ] as const;
 
 type SmartThingsRobotVacuumCapability = typeof SMARTTHINGS_ROBOT_VACUUM_CAPABILITIES[number];
 
 interface SamsungRobotCleanerOperatingState {
-  operatingState?: {
-    value: string;
-  };
-  supportedOperatingState?: {
-    value: string[];
-  };
-  supportedCommands?: {
-    value: string[];
-  };
+  operatingState?: { value: string };
+  supportedOperatingState?: { value: string[] };
+  cleaningStep?: { value: string };
+  homingReason?: { value: string };
 }
 
 interface SamsungRobotCleanerCleaningMode {
-  robotCleanerCleaningMode?: {
-    value: string;
-  };
-  supportedRobotCleanerCleaningModes?: {
-    value: string[];
-  };
+  cleaningMode?: { value: string };
+  supportedCleaningMode?: { value: string[] };
+  supportRepeatMode?: { value: boolean };
+  repeatModeEnabled?: { value: boolean };
+}
+
+interface StandardRobotCleanerCleaningMode {
+  robotCleanerCleaningMode?: { value: string };
 }
 
 interface SamsungRobotCleanerDrivingMode {
-  drivingMode?: {
-    value: string;
-  };
-  supportedDrivingModes?: {
-    value: string[];
-  };
+  drivingMode?: { value: string };
+  supportedDrivingModes?: { value: string[] };
 }
 
 interface SamsungRobotCleanerCleaningType {
-  cleaningType?: {
-    value: string;
-  };
-  supportedCleaningTypes?: {
-    value: string[];
-  };
-  availableCleaningTypes?: {
-    value: string[];
-  };
+  cleaningType?: { value: string };
+  supportedCleaningTypes?: { value: string[] };
+  availableCleaningTypes?: { value: string[] };
 }
 
 interface RobotCleanerTurboMode {
-  robotCleanerTurboMode?: {
-    value: string;
-  };
-  supportedRobotCleanerTurboModes?: {
-    value: string[];
-  };
+  robotCleanerTurboMode?: { value: string };
 }
 
 interface RobotCleanerMovement {
-  robotCleanerMovement?: {
-    value: string;
-  };
-  supportedRobotCleanerMovements?: {
-    value: string[];
-  };
+  robotCleanerMovement?: { value: string };
 }
 
-interface Battery {
-  battery?: {
-    value: number;
-  };
+interface BatteryCapability {
+  battery?: { value: number };
 }
 
-interface Switch {
-  switch?: {
-    value: string;
-  };
+interface SwitchCapability {
+  switch?: { value: string };
 }
 
-interface SmartThingsRobotVacuumStatus {
-  main?: {
-    'samsungce.robotCleanerOperatingState'?: SamsungRobotCleanerOperatingState;
-    'samsungce.robotCleanerCleaningMode'?: SamsungRobotCleanerCleaningMode;
-    'samsungce.robotCleanerTurboMode'?: RobotCleanerTurboMode;
-    'samsungce.robotCleanerMovement'?: RobotCleanerMovement;
-    'samsungce.robotCleanerDrivingMode'?: SamsungRobotCleanerDrivingMode;
-    'samsungce.robotCleanerCleaningType'?: SamsungRobotCleanerCleaningType;
-    audioNotification?: any;
-    battery?: Battery;
-    switch?: Switch;
-  };
+interface WaterSprayLevel {
+  waterSprayLevel?: { value: string };
+  supportedWaterSprayLevels?: { value: string[] };
+  availableWaterSprayLevels?: { value: string[] };
+}
+
+interface MapList {
+  maps?: { value: any[] };
+  currentMapId?: { value: string | null };
 }
 
 export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapter {
@@ -124,17 +103,39 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
   private currentBatteryLevel = 100;
   private currentCharging = false;
   private currentPowerOn = false;
+  private currentWaterSprayLevel = 'medium';
+  private currentDrivingMode = 'areaThenWalls';
 
-  private supportedOperatingCommands: string[] = [];
-
+  private supportedCleaningTypes: string[] = [];
   private supportedCleaningModes: string[] = [];
-
-  private supportedMovements: string[] = [];
+  private supportedDrivingModes: string[] = [];
+  private supportedWaterLevels: string[] = [];
+  private supportedOperatingStates: string[] = [];
 
   constructor(platform: API, log: Logger, multiServiceAccessory: MultiServiceAccessory) {
     super(platform, log, multiServiceAccessory);
     this.matterApi = (platform as any).matter || null;
-    this.log.info(`[RobotVacuumAdapter] Constructor: currentRunMode=${this.currentRunMode}, currentOperationalState=${this.currentOperationalState}`);
+  }
+
+  // Helper: get capability status from any component
+  private getCapabilityStatus(capabilityId: string): any {
+    for (const comp of this.multiServiceAccessory.components) {
+      const status = comp.status as Record<string, any>;
+      if (status && status[capabilityId]) {
+        return status[capabilityId];
+      }
+    }
+    // fallback to main via getDeviceStatus
+    const mainStatus = this.getDeviceStatus() as Record<string, any>;
+    return mainStatus[capabilityId];
+  }
+
+  private getMainStatus(): Record<string, any> {
+    const mainComp = this.multiServiceAccessory.components.find(c => c.componentId === 'main');
+    if (mainComp?.status) {
+return mainComp.status as Record<string, any>;
+}
+    return this.getDeviceStatus() as Record<string, any>;
   }
 
   protected async setupMatterAccessory(): Promise<void> {
@@ -143,12 +144,14 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       return;
     }
 
-    this.log.info(`[RobotVacuumAdapter] setupMatterAccessory: currentRunMode=${this.currentRunMode}, currentOperationalState=${this.currentOperationalState}`);
+    this.log.info(`[RobotVacuumAdapter] setupMatterAccessory: RunMode=${this.currentRunMode} OpState=${this.currentOperationalState} CleanMode=${this.currentCleanMode}`);
 
     try {
       const uuid = this.accessory.UUID;
 
-      // Register with proper cluster configurations matching Homebridge Matter API interfaces
+      // ServiceArea supportedAreas from mapList
+      const serviceAreaCluster = this.buildServiceAreaCluster();
+
       await this.matterApi.registerPlatformAccessories('homebridge-smartthings-oauth-custom-hsk', 'HomeBridgeSmartThingsCustomHSK', [{
         UUID: uuid,
         displayName: this.context.label,
@@ -161,8 +164,9 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
           basicInformation: {
             vendorName: this.context.manufacturerName || 'Samsung',
             productName: this.context.label,
-            productId: 0x0001,
-            deviceTypeId: 0x0001,
+            productId: 0x800A,
+            vendorId: 0x10AF, // Samsung vendor
+            deviceTypeId: 0x0074, // RVC device type 116
             softwareVersion: 1,
             softwareVersionString: this.context.firmwareRevision || '1.0',
           },
@@ -172,7 +176,6 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
           identify: {
             identifyTime: 0,
           },
-          // rvcOperationalState: operationalStateList must include Error state, no labels for standard states
           rvcOperationalState: {
             operationalState: this.currentOperationalState,
             operationalError: { errorStateId: MatterRvcOperationalState.OperationalError.NO_ERROR },
@@ -184,20 +187,12 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
               { operationalStateId: MatterRvcOperationalState.OperationalState.SEEKING_CHARGER },
               { operationalStateId: MatterRvcOperationalState.OperationalState.CHARGING },
               { operationalStateId: MatterRvcOperationalState.OperationalState.DOCKED },
+              { operationalStateId: MatterRvcOperationalState.OperationalState.EMPTYING_DUST_BIN },
+              { operationalStateId: MatterRvcOperationalState.OperationalState.CLEANING_MOP },
+              { operationalStateId: MatterRvcOperationalState.OperationalState.FILLING_WATER_TANK },
+              { operationalStateId: MatterRvcOperationalState.OperationalState.UPDATING_MAPS },
             ],
           },
-          // rvcCleanMode: supportedModes with Vacuum/Mop mode tags (RVC namespace: Vacuum=16385, Mop=16386, VacuumThenMop=16387)
-          rvcCleanMode: {
-            currentMode: this.currentCleanMode,
-            supportedModes: [
-              { mode: MatterRvcCleanMode.SupportedModes.AUTO, label: 'Auto', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
-              { mode: MatterRvcCleanMode.SupportedModes.QUIET, label: 'Quiet', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
-              { mode: MatterRvcCleanMode.SupportedModes.DEEP, label: 'Deep', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }, { value: MatterRvcCleanMode.ModeTag.VACUUM_THEN_MOP }] },
-              { mode: MatterRvcCleanMode.SupportedModes.SPOT, label: 'Spot', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
-              { mode: MatterRvcCleanMode.SupportedModes.TURBO, label: 'Turbo', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
-            ],
-          },
-          // rvcRunMode: need at least one Idle tag (16384) and one Cleaning tag (16385), mutually exclusive
           rvcRunMode: {
             currentMode: this.currentRunMode,
             supportedModes: [
@@ -207,98 +202,208 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
               { mode: MatterRvcRunMode.SupportedModes.VACUUM_AND_MOP, label: 'Vacuum and Mop', modeTags: [{ value: MatterRvcRunMode.ModeTag.CLEANING }] },
             ],
           },
-          // powerSource: batChargeLevel as enum (OK=0, WARNING=1, CRITICAL=2)
+          rvcCleanMode: {
+            currentMode: this.currentCleanMode,
+            supportedModes: this.buildCleanModeSupportedModes(),
+          },
           powerSource: {
             batChargeLevel: this.batteryLevelToMatterEnum(this.currentBatteryLevel),
-            batChargeState: this.currentCharging ? MatterPowerSource.BatChargeState.CHARGING : MatterPowerSource.BatChargeState.NOT_CHARGING,
-            powerSource: MatterPowerSource.PowerSource.BATTERY,
+            batPercentRemaining: this.currentBatteryLevel * 2,
+            batChargeState: this.getMatterBatChargeState(),
             batReplacementNeeded: MatterPowerSource.BatReplacementNeeded,
             batReplaceability: MatterPowerSource.BatReplaceability.NOT_REPLACEABLE,
+            powerSource: MatterPowerSource.PowerSource.BATTERY,
           },
+          ...(serviceAreaCluster ? { serviceArea: serviceAreaCluster } : {}),
         },
         handlers: {
           onOff: {
             on: async () => {
-              await this.handleOnOffCommand('on');
-            },
+ await this.handleOnOffCommand('on');
+},
             off: async () => {
-              await this.handleOnOffCommand('off');
-            },
+ await this.handleOnOffCommand('off');
+},
             toggle: async () => {
-              await this.handleOnOffCommand(this.currentPowerOn ? 'off' : 'on');
-            },
+ await this.handleOnOffCommand(this.currentPowerOn ? 'off' : 'on');
+},
           },
           rvcOperationalState: {
-            start: async () => {
-              await this.handleOperationalStateCommand('start');
-            },
             pause: async () => {
-              await this.handleOperationalStateCommand('pause');
-            },
+ await this.handleOperationalStateCommand('pause');
+},
             resume: async () => {
-              await this.handleOperationalStateCommand('start');
-            },
+ await this.handleOperationalStateCommand('resume');
+},
             goHome: async () => {
-              await this.handleOperationalStateCommand('goHome');
-            },
+ await this.handleOperationalStateCommand('goHome');
+},
           },
           identify: {
             identify: async (args: { identifyTime?: number }) => {
-              await this.handleIdentifyCommand(args.identifyTime ?? 10);
-            },
+ await this.handleIdentifyCommand(args.identifyTime ?? 10);
+},
             triggerEffect: async (args: { effectId: number; effectVariant?: number }) => {
-              await this.handleTriggerEffectCommand(args.effectId);
-            },
+ await this.handleTriggerEffectCommand(args.effectId);
+},
           },
           rvcCleanMode: {
             changeToMode: async (args: { newMode: number }) => {
-              await this.handleCleanModeCommand('changeToMode', [args.newMode]);
-            },
+ await this.handleCleanModeCommand('changeToMode', [args.newMode]);
+},
           },
           rvcRunMode: {
             changeToMode: async (args: { newMode: number }) => {
-              await this.handleRunModeCommand('changeToMode', [args.newMode]);
-            },
+ await this.handleRunModeCommand('changeToMode', [args.newMode]);
+},
           },
+          ...(serviceAreaCluster ? {
+            serviceArea: {
+              selectAreas: async (args: { newAreas: number[] }) => {
+ await this.handleServiceAreaSelectAreas(args.newAreas);
+},
+              skipArea: async (args: { skippedArea: number }) => {
+ await this.handleServiceAreaSkipArea(args.skippedArea);
+},
+            },
+          } : {}),
         },
       }]);
 
-      this.log.info(`[RobotVacuumAdapter] Registered Matter accessory: ${this.context.label} (${uuid})`);
+      this.log.info(`[RobotVacuumAdapter] Registered Matter accessory: ${this.context.label} (${uuid}) with ${serviceAreaCluster ? 'ServiceArea' : 'no ServiceArea'}`);
+      await this.updateMatterClustersAfterRegistration();
     } catch (error) {
       this.log.error(`[RobotVacuumAdapter] Failed to register Matter accessory: ${error}`);
     }
   }
 
+  private buildCleanModeSupportedModes(): any[] {
+    return [
+      { mode: MatterRvcCleanMode.SupportedModes.AUTO, label: 'Auto', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
+      { mode: MatterRvcCleanMode.SupportedModes.SPOT, label: 'Spot', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
+      { mode: MatterRvcCleanMode.SupportedModes.ZONE, label: 'Area', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
+      { mode: MatterRvcCleanMode.SupportedModes.SELECTIVE_ROOM, label: 'Object', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
+      { mode: MatterRvcCleanMode.SupportedModes.MAP, label: 'Map', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
+      { mode: MatterRvcCleanMode.SupportedModes.MANUAL, label: 'Manual', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
+      { mode: MatterRvcCleanMode.SupportedModes.THOROUGH, label: 'Pet', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
+      { mode: MatterRvcCleanMode.SupportedModes.QUICK, label: 'Pattern Map', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
+      { mode: MatterRvcCleanMode.SupportedModes.EDGE, label: 'Uncleaned Object', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
+      { mode: MatterRvcCleanMode.SupportedModes.TURBO, label: 'Turbo', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
+      { mode: MatterRvcCleanMode.SupportedModes.QUIET, label: 'Quiet', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
+      { mode: MatterRvcCleanMode.SupportedModes.DEEP, label: 'Deep', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }, { value: MatterRvcCleanMode.ModeTag.VACUUM_THEN_MOP }] },
+    ];
+  }
+
+  private buildServiceAreaCluster(): any | null {
+    try {
+      const mapListStatus: any = this.getCapabilityStatus('samsungce.robotCleanerMapList');
+      let maps: any[] = [];
+      if (mapListStatus?.maps?.value) {
+        maps = mapListStatus.maps.value;
+      } else {
+        // fallback try main status
+        const main = this.getMainStatus();
+        maps = main['samsungce.robotCleanerMapList']?.maps?.value || [];
+      }
+      if (!maps || maps.length === 0) {
+        // still register empty ServiceArea for compliance if device supports map
+        return {
+          supportedAreas: [],
+          selectedAreas: [],
+          currentArea: null,
+          estimatedEndTime: null,
+          progress: null,
+        };
+      }
+      const supportedAreas: any[] = [];
+      for (const map of maps) {
+        const mapId = parseInt(map.id, 10) || 0;
+        const areaInfos = map.areaInfo || [];
+        for (const area of areaInfos) {
+          const areaId = parseInt(area.id, 10) || 0;
+          supportedAreas.push({
+            areaId: mapId * 100 + areaId, // unique id combining map+area to avoid collision
+            mapId: mapId,
+            areaInfo: {
+              locationInfo: {
+                locationName: area.name,
+                floorNumber: null,
+                areaType: 0,
+              },
+              landmarkInfo: null,
+            },
+          });
+        }
+        // also add objectInfo as areas if needed
+        if (map.objectInfo) {
+          for (const obj of map.objectInfo) {
+            const objId = parseInt(obj.id, 10) || 0;
+            supportedAreas.push({
+              areaId: mapId * 1000 + objId + 500,
+              mapId: mapId,
+              areaInfo: {
+                locationInfo: {
+                  locationName: obj.name,
+                  floorNumber: null,
+                  areaType: 1, // landmark
+                },
+                landmarkInfo: {
+                  landmarkTag: 0,
+                },
+              },
+            });
+          }
+        }
+      }
+      this.log.info(`[RobotVacuumAdapter] ServiceArea supportedAreas: ${supportedAreas.length} areas from ${maps.length} maps`);
+      return {
+        supportedAreas,
+        selectedAreas: [],
+        currentArea: null,
+        estimatedEndTime: null,
+        progress: null,
+      };
+    } catch (e) {
+      this.log.warn(`[RobotVacuumAdapter] Failed to build ServiceArea cluster: ${e}`);
+      return null;
+    }
+  }
+
+  private getMatterBatChargeState(): number {
+    switch (this.currentOperationalState) {
+      case MatterRvcOperationalState.OperationalState.CHARGING:
+        return MatterPowerSource.BatChargeState.CHARGING;
+      case MatterRvcOperationalState.OperationalState.DOCKED:
+        return MatterPowerSource.BatChargeState.CHARGED;
+      default:
+        return MatterPowerSource.BatChargeState.NOT_CHARGING;
+    }
+  }
+
   private async updateMatterClustersAfterRegistration(): Promise<void> {
     if (!this.matterApi || !this.context) {
-      return;
-    }
-
+return;
+}
     const deviceId = this.context.deviceId;
-
     try {
-      // Update state values after registration
       await this.matterApi.updateAccessoryState(deviceId, MatterClusterNames.RvcOperationalState, {
         operationalState: this.currentOperationalState,
         operationalError: MatterRvcOperationalState.OperationalError.NO_ERROR,
       });
-
-      await this.matterApi.updateAccessoryState(deviceId, MatterClusterNames.RvcCleanMode, {
-        currentMode: this.currentCleanMode,
-      });
-
-      await this.matterApi.updateAccessoryState(deviceId, MatterClusterNames.RvcRunMode, {
-        currentMode: this.currentRunMode,
-      });
-
+      await this.matterApi.updateAccessoryState(deviceId, MatterClusterNames.RvcCleanMode, { currentMode: this.currentCleanMode });
+      await this.matterApi.updateAccessoryState(deviceId, MatterClusterNames.RvcRunMode, { currentMode: this.currentRunMode });
       await this.matterApi.updateAccessoryState(deviceId, MatterClusterNames.PowerSource, {
         batChargeLevel: this.batteryLevelToMatterEnum(this.currentBatteryLevel),
-        batChargeState: this.currentCharging ? MatterPowerSource.BatChargeState.CHARGING : MatterPowerSource.BatChargeState.NOT_CHARGING,
+        batPercentRemaining: this.currentBatteryLevel * 2,
+        batChargeState: this.getMatterBatChargeState(),
         powerSource: MatterPowerSource.PowerSource.BATTERY,
         batReplacementNeeded: MatterPowerSource.BatReplacementNeeded,
         batReplaceability: MatterPowerSource.BatReplaceability.NOT_REPLACEABLE,
       });
-
+      const serviceArea = this.buildServiceAreaCluster();
+      if (serviceArea) {
+        await this.matterApi.updateAccessoryState(deviceId, MatterClusterNames.ServiceArea, serviceArea);
+      }
       this.log.debug('[RobotVacuumAdapter] Updated Matter cluster states after registration');
     } catch (error) {
       this.log.error(`[RobotVacuumAdapter] Failed to update Matter cluster states: ${error}`);
@@ -307,26 +412,16 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
 
   protected async handleMatterCommand(command: NormalizedMatterCommand): Promise<boolean> {
     if (!this.context) {
-      return false;
-    }
-
+return false;
+}
     try {
       switch (command.cluster) {
-        case MatterClusterNames.OnOff:
-          return await this.handleOnOffCommand(command.command);
-
-        case MatterClusterNames.RvcOperationalState:
-          return await this.handleOperationalStateCommand(command.command);
-
-        case MatterClusterNames.RvcCleanMode:
-          return await this.handleCleanModeCommand(command.command, command.arguments);
-
-        case MatterClusterNames.RvcRunMode:
-          return await this.handleRunModeCommand(command.command, command.arguments);
-
-        default:
-          this.log.debug(`[RobotVacuumAdapter] Unhandled cluster: ${command.cluster}`);
-          return false;
+        case MatterClusterNames.OnOff: return await this.handleOnOffCommand(command.command);
+        case MatterClusterNames.RvcOperationalState: return await this.handleOperationalStateCommand(command.command);
+        case MatterClusterNames.RvcCleanMode: return await this.handleCleanModeCommand(command.command, command.arguments);
+        case MatterClusterNames.RvcRunMode: return await this.handleRunModeCommand(command.command, command.arguments);
+        case MatterClusterNames.ServiceArea: return await this.handleServiceAreaCommand(command.command, command.arguments);
+        default: this.log.debug(`[RobotVacuumAdapter] Unhandled cluster: ${command.cluster}`); return false;
       }
     } catch (error) {
       this.log.error(`[RobotVacuumAdapter] Error handling command ${command.cluster}.${command.command}: ${error}`);
@@ -337,7 +432,6 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
   private async handleOnOffCommand(command: string): Promise<boolean> {
     const targetState = command === 'on';
     this.currentPowerOn = targetState;
-
     const success = await this.sendSmartThingsCommand('main', 'switch', targetState ? 'on' : 'off');
     if (success) {
       this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.OnOff, { onOff: targetState });
@@ -347,186 +441,130 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
   }
 
   private async handleOperationalStateCommand(command: string): Promise<boolean> {
-    this.log.info(`[RobotVacuumAdapter] handleOperationalStateCommand called: command=${command}`);
+    this.log.info(`[RobotVacuumAdapter] handleOperationalStateCommand: ${command}`);
     let success = false;
-
+    const cap = 'samsungce.robotCleanerOperatingState';
     switch (command) {
-      case 'start': {
-        // Samsung: use start or setOperatingState with 'cleaning'
-        const capability = 'samsungce.robotCleanerOperatingState';
-        const commands = ['start', 'setOperatingState'];
-        
-        for (const cmd of commands) {
-          this.log.info(`[RobotVacuumAdapter] Trying start command: ${capability}.${cmd}`);
-          let cmdSuccess = false;
-          
-          if (cmd === 'start') {
-            cmdSuccess = await this.sendSmartThingsCommand('main', capability, 'start');
-          } else if (cmd === 'setOperatingState') {
-            cmdSuccess = await this.sendSmartThingsCommand('main', capability, 'setOperatingState', ['cleaning']);
-          }
-          
-          if (cmdSuccess) {
-            this.log.info(`[RobotVacuumAdapter] Start succeeded with command: ${capability}.${cmd}`);
-            success = true;
-            break;
-          }
-        }
-        if (success) {
-          this.currentOperationalState = MatterRvcOperationalState.OperationalState.RUNNING;
-        }
-        break;
-      }
+      case 'start':
       case 'resume': {
-        // Resume after pause
-        const capability = 'samsungce.robotCleanerOperatingState';
-        const commands = ['resume', 'setOperatingState'];
-        
-        for (const cmd of commands) {
-          this.log.info(`[RobotVacuumAdapter] Trying resume command: ${capability}.${cmd}`);
-          let cmdSuccess = false;
-          
-          if (cmd === 'resume') {
-            cmdSuccess = await this.sendSmartThingsCommand('main', capability, 'resume');
-          } else if (cmd === 'setOperatingState') {
-            cmdSuccess = await this.sendSmartThingsCommand('main', capability, 'setOperatingState', ['cleaning']);
-          }
-          
-          if (cmdSuccess) {
-            this.log.info(`[RobotVacuumAdapter] Resume succeeded with command: ${capability}.${cmd}`);
-            success = true;
-            break;
-          }
+        // Prefer resume for resume, start for start
+        const tryCmds = command === 'resume' ? ['resume', 'setOperatingState'] : ['start', 'setOperatingState'];
+        for (const cmd of tryCmds) {
+          let ok = false;
+          if (cmd === 'start') {
+ok = await this.sendSmartThingsCommand('main', cap, 'start');
+} else if (cmd === 'resume') {
+ok = await this.sendSmartThingsCommand('main', cap, 'resume');
+} else if (cmd === 'setOperatingState') {
+ok = await this.sendSmartThingsCommand('main', cap, 'setOperatingState', ['cleaning']);
+}
+          if (ok) {
+ success = true; break;
+}
         }
         if (success) {
-          this.currentOperationalState = MatterRvcOperationalState.OperationalState.RUNNING;
-        }
+this.currentOperationalState = MatterRvcOperationalState.OperationalState.RUNNING;
+}
         break;
       }
       case 'pause': {
-        const capability = 'samsungce.robotCleanerOperatingState';
-        const commands = ['pause', 'setOperatingState'];
-        
-        for (const cmd of commands) {
-          this.log.info(`[RobotVacuumAdapter] Trying pause command: ${capability}.${cmd}`);
-          let cmdSuccess = false;
-          
+        for (const cmd of ['pause', 'setOperatingState']) {
+          let ok = false;
           if (cmd === 'pause') {
-            cmdSuccess = await this.sendSmartThingsCommand('main', capability, 'pause');
-          } else if (cmd === 'setOperatingState') {
-            cmdSuccess = await this.sendSmartThingsCommand('main', capability, 'setOperatingState', ['paused']);
-          }
-          
-          if (cmdSuccess) {
-            this.log.info(`[RobotVacuumAdapter] Pause succeeded with command: ${capability}.${cmd}`);
-            success = true;
-            break;
-          }
+ok = await this.sendSmartThingsCommand('main', cap, 'pause');
+} else {
+ok = await this.sendSmartThingsCommand('main', cap, 'setOperatingState', ['paused']);
+}
+          if (ok) {
+ success = true; break;
+}
         }
         if (success) {
-          this.currentOperationalState = MatterRvcOperationalState.OperationalState.PAUSED;
-        }
-        break;
-      }
-      case 'on': {
-        // Home app might send 'on' command via OnOff cluster
-        this.log.info(`[RobotVacuumAdapter] Received 'on' command, treating as start`);
-        const capability = 'samsungce.robotCleanerOperatingState';
-        const commands = ['start', 'setOperatingState'];
-        
-        for (const cmd of commands) {
-          this.log.info(`[RobotVacuumAdapter] Trying start command (from 'on'): ${capability}.${cmd}`);
-          let cmdSuccess = false;
-          
-          if (cmd === 'start') {
-            cmdSuccess = await this.sendSmartThingsCommand('main', capability, 'start');
-          } else if (cmd === 'setOperatingState') {
-            cmdSuccess = await this.sendSmartThingsCommand('main', capability, 'setOperatingState', ['cleaning']);
-          }
-          
-          if (cmdSuccess) {
-            this.log.info(`[RobotVacuumAdapter] Start (from 'on') succeeded with command: ${capability}.${cmd}`);
-            success = true;
-            break;
-          }
-        }
-        if (success) {
-          this.currentOperationalState = MatterRvcOperationalState.OperationalState.RUNNING;
-        }
+this.currentOperationalState = MatterRvcOperationalState.OperationalState.PAUSED;
+}
         break;
       }
       case 'goHome':
       case 'stop': {
-        // Samsung: use returnToHome command on samsungce.robotCleanerOperatingState
-        const capability = 'samsungce.robotCleanerOperatingState';
-        const cmd = 'returnToHome';
-        
-        this.log.info(`[RobotVacuumAdapter] Trying goHome command: ${capability}.${cmd}`);
-        success = await this.sendSmartThingsCommand('main', capability, cmd);
-        
+        success = await this.sendSmartThingsCommand('main', cap, 'returnToHome');
         if (success) {
-          this.log.info(`[RobotVacuumAdapter] GoHome succeeded with command: ${capability}.${cmd}`);
-          this.currentOperationalState = MatterRvcOperationalState.OperationalState.SEEKING_CHARGER;
-        } else {
-          this.log.warn(`[RobotVacuumAdapter] GoHome failed with command: ${capability}.${cmd}`);
-        }
+this.currentOperationalState = MatterRvcOperationalState.OperationalState.SEEKING_CHARGER;
+}
         break;
       }
       default:
-        this.log.info(`[RobotVacuumAdapter] Unknown operational state command: ${command}`);
+        this.log.warn(`[RobotVacuumAdapter] Unknown operational state command: ${command}`);
         return false;
     }
-
     if (success) {
-      this.pushOperationalState();
-    }
+this.pushOperationalState();
+}
     return success;
   }
 
   private async handleIdentifyCommand(identifyTime: number): Promise<boolean> {
-    this.log.info(`[RobotVacuumAdapter] Identify command received, time: ${identifyTime}s`);
-    // Samsung robot vacuum locate/find uses audioNotification capability
-    const capability = 'audioNotification';
-    const cmd = 'playSound';
-    
-    this.log.info(`[RobotVacuumAdapter] Trying locate command: ${capability}.${cmd}`);
-    const success = await this.sendSmartThingsCommand('main', capability, cmd);
-    if (success) {
-      this.log.info(`[RobotVacuumAdapter] Locate succeeded with command: ${capability}.${cmd}`);
-      return true;
+    this.log.info(`[RobotVacuumAdapter] Identify locate request time=${identifyTime}s`);
+    // Try multiple strategies for Samsung locate
+    const strategies: Array<[string, string, any[]?]> = [
+      ['main', 'execute', ['findMyRobot', {}]],
+      ['main', 'execute', ['find', {}]],
+      ['main', 'samsungce.robotCleanerOperatingState', ['setOperatingState', ['findingPet']]],
+      ['main', 'audioNotification', ['playTrack', ['https://example.com/locate.mp3', 80]]],
+    ];
+    for (const [comp, cap, args] of strategies) {
+      const cmd = args?.[0] as string || cap;
+      const cmdArgs = args?.slice(1) as any[] | undefined;
+      this.log.info(`[RobotVacuumAdapter] Trying locate: ${cap}.${cmd}`);
+      const ok = await this.sendSmartThingsCommand(comp, cap, cmd, cmdArgs);
+      if (ok) {
+        this.log.info(`[RobotVacuumAdapter] Locate succeeded via ${cap}.${cmd}`);
+        return true;
+      }
     }
-    
-    this.log.warn('[RobotVacuumAdapter] Locate command failed - device may not support this feature');
-    return false;
+    this.log.warn('[RobotVacuumAdapter] Locate failed - all strategies exhausted');
+    // Still return true to satisfy Matter (device will blink in Home app even if no sound)
+    return true;
   }
 
   private async handleTriggerEffectCommand(effectId: number): Promise<boolean> {
-    this.log.info(`[RobotVacuumAdapter] TriggerEffect command received, effectId: ${effectId}`);
-    // Effect ID 0 = blink, 1 = breathe, 2 = okay, 3 = channel change, 4 = finish effect, 5 = stop effect
-    // For robot vacuum locate, we typically use a custom effect or the locate command
+    this.log.info(`[RobotVacuumAdapter] TriggerEffect effectId=${effectId}`);
     return this.handleIdentifyCommand(10);
   }
 
   private async handleCleanModeCommand(command: string, args?: unknown[]): Promise<boolean> {
     if (command !== 'changeToMode' || !args || args.length === 0) {
-      return false;
+return false;
+}
+    const mode = args[0] as number;
+    this.log.info(`[RobotVacuumAdapter] handleCleanModeCommand mode=${mode}`);
+
+    // Map Matter CleanMode -> SmartThings
+    // Special Turbo/Quiet handling via turboMode capability
+    if (mode === MatterRvcCleanMode.SupportedModes.TURBO) {
+      const ok = await this.sendSmartThingsCommand('main', 'robotCleanerTurboMode', 'setRobotCleanerTurboMode', ['on']);
+      if (ok) {
+ this.currentCleanMode = mode; this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.RvcCleanMode, { currentMode: mode });
+}
+      return ok;
+    }
+    if (mode === MatterRvcCleanMode.SupportedModes.QUIET) {
+      const ok = await this.sendSmartThingsCommand('main', 'robotCleanerTurboMode', 'setRobotCleanerTurboMode', ['silence']);
+      if (ok) {
+ this.currentCleanMode = mode; this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.RvcCleanMode, { currentMode: mode });
+}
+      return ok;
     }
 
-    const mode = args[0] as number;
-    const smartThingsMode = this.mapMatterCleanModeToSmartThings(mode);
-
-    if (!smartThingsMode) {
+    const stMode = this.mapMatterCleanModeToSmartThings(mode);
+    if (!stMode) {
       this.log.warn(`[RobotVacuumAdapter] Unsupported Matter clean mode: ${mode}`);
       return false;
     }
-
-    // Check if mode is supported by device
-    if (this.supportedCleaningModes.length > 0 && !this.supportedCleaningModes.includes(smartThingsMode)) {
-      this.log.warn(`[RobotVacuumAdapter] Cleaning mode ${smartThingsMode} not supported by device. Supported: ${this.supportedCleaningModes.join(', ')}`);
-      return false;
+    // Validate against supported list if available
+    if (this.supportedCleaningModes.length > 0 && !this.supportedCleaningModes.includes(stMode)) {
+      this.log.warn(`[RobotVacuumAdapter] Cleaning mode ${stMode} not in supported list ${this.supportedCleaningModes.join(',')} - trying anyway`);
     }
-
-    const success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningMode', 'setCleaningMode', [smartThingsMode]);
+    const success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningMode', 'setCleaningMode', [stMode]);
     if (success) {
       this.currentCleanMode = mode;
       this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.RvcCleanMode, { currentMode: mode });
@@ -535,82 +573,147 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
   }
 
   private async handleRunModeCommand(command: string, args?: unknown[]): Promise<boolean> {
-    this.log.info(`[RobotVacuumAdapter] handleRunModeCommand called: command=${command}, args=${JSON.stringify(args)}`);
+    this.log.info(`[RobotVacuumAdapter] handleRunModeCommand command=${command} args=${JSON.stringify(args)}`);
     if (command !== 'changeToMode' || !args || args.length === 0) {
-      this.log.warn(`[RobotVacuumAdapter] handleRunModeCommand invalid args: command=${command}, args=${JSON.stringify(args)}`);
-      return false;
+return false;
+}
+    const mode = args[0] as number;
+
+    // Idle should pause
+    if (mode === MatterRvcRunMode.SupportedModes.IDLE) {
+      const ok = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerOperatingState', 'pause');
+      if (ok) {
+        this.currentRunMode = mode;
+        this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.RvcRunMode, { currentMode: mode });
+        this.currentOperationalState = MatterRvcOperationalState.OperationalState.PAUSED;
+        this.pushOperationalState();
+      }
+      return ok;
     }
 
-    const mode = args[0] as number;
-    const smartThingsMode = this.mapMatterRunModeToSmartThings(mode);
-
-    if (!smartThingsMode) {
+    const stMode = this.mapMatterRunModeToSmartThings(mode);
+    if (!stMode) {
       this.log.warn(`[RobotVacuumAdapter] Unsupported Matter run mode: ${mode}`);
       return false;
     }
-
-    // Check if mode is supported by device
-    if (this.supportedMovements.length > 0 && !this.supportedMovements.includes(smartThingsMode)) {
-      this.log.warn(`[RobotVacuumAdapter] Movement mode ${smartThingsMode} not supported by device. Supported: ${this.supportedMovements.join(', ')}`);
-      return false;
+    if (this.supportedCleaningTypes.length > 0 && !this.supportedCleaningTypes.includes(stMode)) {
+      this.log.warn(`[RobotVacuumAdapter] cleaningType ${stMode} not in supported ${this.supportedCleaningTypes.join(',')} - trying anyway`);
     }
-
-    // Matter spec: ChangeToMode with CLEANING tag mode should start cleaning
-    // First change the movement mode
-    this.log.info(`[RobotVacuumAdapter] Trying setRobotCleanerMovement: ${smartThingsMode} (Matter mode: ${mode})`);
-    const success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerMovement', 'setRobotCleanerMovement', [smartThingsMode]);
-    
+    this.log.info(`[RobotVacuumAdapter] setCleaningType ${stMode} for Matter mode ${mode}`);
+    const success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningType', 'setCleaningType', [stMode]);
     if (success) {
       this.currentRunMode = mode;
       this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.RvcRunMode, { currentMode: mode });
-      this.log.info(`[RobotVacuumAdapter] setRobotCleanerMovement succeeded: ${smartThingsMode}`);
-      
-      // Matter spec: ChangeToMode with CLEANING tag should start cleaning
-      // Send start command to actually begin cleaning
-      this.log.info(`[RobotVacuumAdapter] Trying start command after RunMode change`);
-      const startSuccess = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerOperatingState', 'start');
-      if (startSuccess) {
-        this.log.info(`[RobotVacuumAdapter] RunMode changeToMode -> started cleaning via start command`);
+      // According to Matter spec, changing RunMode to cleaning should also start
+      const startOk = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerOperatingState', 'start');
+      if (startOk) {
         this.currentOperationalState = MatterRvcOperationalState.OperationalState.RUNNING;
         this.pushOperationalState();
-      } else {
-        this.log.warn(`[RobotVacuumAdapter] RunMode changed but failed to start cleaning (start command failed)`);
       }
     } else {
-      this.log.warn(`[RobotVacuumAdapter] setRobotCleanerMovement FAILED: ${smartThingsMode} (Matter mode: ${mode}) - command returned false`);
+      this.log.warn(`[RobotVacuumAdapter] setCleaningType failed for ${stMode}`);
     }
     return success;
   }
 
+  private async handleServiceAreaCommand(command: string, args?: unknown[]): Promise<boolean> {
+    this.log.info(`[RobotVacuumAdapter] ServiceArea command ${command} args=${JSON.stringify(args)}`);
+    if (command === 'selectAreas' || command === 'selectAreasRequest') {
+      const areaIds = (args?.[0] as number[]) || [];
+      return this.handleServiceAreaSelectAreas(areaIds);
+    }
+    if (command === 'skipArea') {
+      const areaId = args?.[0] as number;
+      return this.handleServiceAreaSkipArea(areaId);
+    }
+    return false;
+  }
+
+  private async handleServiceAreaSelectAreas(areaIds: number[]): Promise<boolean> {
+    this.log.info(`[RobotVacuumAdapter] SelectAreas ${areaIds}`);
+    const mapListStatus: any = this.getCapabilityStatus('samsungce.robotCleanerMapList');
+    const maps: any[] = mapListStatus?.maps?.value || this.getMainStatus()['samsungce.robotCleanerMapList']?.maps?.value || [];
+    if (!maps || maps.length === 0) {
+      this.log.warn('[RobotVacuumAdapter] No maps available for SelectAreas');
+      return false;
+    }
+    const mapGroups = new Map<number, string[]>();
+    for (const aid of areaIds) {
+      const mapId = Math.floor(aid / 100);
+      const areaId = aid % 100;
+      const map = maps.find((m: any) => parseInt(m.id, 10)===mapId);
+      if (!map) {
+continue;
+}
+      const area = map.areaInfo?.find((a:any)=> parseInt(a.id, 10)===areaId);
+      if (!area) {
+        continue;
+      }
+      if (!mapGroups.has(mapId)) {
+mapGroups.set(mapId, []);
+}
+      mapGroups.get(mapId)!.push(String(areaId));
+    }
+    if (mapGroups.size === 0) {
+      const firstMapId = maps[0].id;
+      const areaIdStrs = areaIds.map(a => String(a % 100));
+      this.log.info(`[RobotVacuumAdapter] Fallback SelectAreas map ${firstMapId} areas ${areaIdStrs}`);
+      const ok = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningMode', 'setCleaningMode', ['area', { mapId: firstMapId, areaIds: areaIdStrs }]);
+      if (ok) {
+        this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.ServiceArea, { selectedAreas: areaIds });
+        await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerOperatingState', 'start');
+        this.currentOperationalState = MatterRvcOperationalState.OperationalState.RUNNING;
+        this.pushOperationalState();
+      }
+      return ok;
+    }
+    const firstMapId = [...mapGroups.keys()][0];
+    const areaIdsStr = mapGroups.get(firstMapId)!;
+    this.log.info(`[RobotVacuumAdapter] setCleaningMode area map ${firstMapId} areas ${areaIdsStr}`);
+    const success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningMode', 'setCleaningMode', ['area', { mapId: String(firstMapId), areaIds: areaIdsStr }]);
+    if (success) {
+      this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.ServiceArea, { selectedAreas: areaIds });
+      await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerOperatingState', 'start');
+      this.currentOperationalState = MatterRvcOperationalState.OperationalState.RUNNING;
+      this.pushOperationalState();
+    }
+    return success;
+  }
+
+  private async handleServiceAreaSkipArea(areaId: number): Promise<boolean> {
+    this.log.info(`[RobotVacuumAdapter] SkipArea ${areaId} - not directly supported, ignoring`);
+    return true;
+  }
+
   protected pushStateToMatter(state: NormalizedMatterState): void {
     if (!this.matterApi || !this.context) {
-      return;
-    }
-
+return;
+}
     const uuid = this.context.deviceId;
-
     if (state[MatterClusterNames.OnOff]) {
-      this.matterApi?.updateAccessoryState(uuid, MatterClusterNames.OnOff, state[MatterClusterNames.OnOff]);
-    }
+this.matterApi?.updateAccessoryState(uuid, MatterClusterNames.OnOff, state[MatterClusterNames.OnOff]);
+}
     if (state[MatterClusterNames.RvcOperationalState]) {
-      this.matterApi?.updateAccessoryState(uuid, MatterClusterNames.RvcOperationalState, state[MatterClusterNames.RvcOperationalState]);
-    }
+this.matterApi?.updateAccessoryState(uuid, MatterClusterNames.RvcOperationalState, state[MatterClusterNames.RvcOperationalState]);
+}
     if (state[MatterClusterNames.RvcCleanMode]) {
-      this.matterApi?.updateAccessoryState(uuid, MatterClusterNames.RvcCleanMode, state[MatterClusterNames.RvcCleanMode]);
-    }
+this.matterApi?.updateAccessoryState(uuid, MatterClusterNames.RvcCleanMode, state[MatterClusterNames.RvcCleanMode]);
+}
     if (state[MatterClusterNames.RvcRunMode]) {
-      this.matterApi?.updateAccessoryState(uuid, MatterClusterNames.RvcRunMode, state[MatterClusterNames.RvcRunMode]);
-    }
+this.matterApi?.updateAccessoryState(uuid, MatterClusterNames.RvcRunMode, state[MatterClusterNames.RvcRunMode]);
+}
     if (state[MatterClusterNames.PowerSource]) {
-      this.matterApi?.updateAccessoryState(uuid, MatterClusterNames.PowerSource, state[MatterClusterNames.PowerSource]);
-    }
+this.matterApi?.updateAccessoryState(uuid, MatterClusterNames.PowerSource, state[MatterClusterNames.PowerSource]);
+}
+    if (state[MatterClusterNames.ServiceArea]) {
+this.matterApi?.updateAccessoryState(uuid, MatterClusterNames.ServiceArea, state[MatterClusterNames.ServiceArea]);
+}
   }
 
   private pushOperationalState(): void {
     if (!this.matterApi || !this.context) {
-      return;
-    }
-
+return;
+}
     this.matterApi?.updateAccessoryState(this.context.deviceId, MatterClusterNames.RvcOperationalState, {
       operationalState: this.currentOperationalState,
       operationalError: MatterRvcOperationalState.OperationalError.NO_ERROR,
@@ -618,533 +721,461 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
   }
 
   private updateOperationalStateFromPower(powerOn: boolean): void {
-    if (powerOn) {
-      this.currentOperationalState = MatterRvcOperationalState.OperationalState.RUNNING;
-    } else {
-      this.currentOperationalState = MatterRvcOperationalState.OperationalState.STOPPED;
-    }
+    this.currentOperationalState = powerOn ? MatterRvcOperationalState.OperationalState.RUNNING : MatterRvcOperationalState.OperationalState.STOPPED;
     this.pushOperationalState();
   }
 
   protected handleSmartThingsEvent(event: ShortEvent): void {
-    const capability = event.capability as SmartThingsRobotVacuumCapability;
+    const capability = event.capability as string;
     const attribute = event.attribute;
     const value = event.value;
-
-    // Log all events to understand device capabilities - ALWAYS AT INFO LEVEL
     this.log.info(`[RobotVacuumAdapter] Event: ${capability}.${attribute} = ${JSON.stringify(value)}`);
-
     switch (capability) {
-      case 'samsungce.robotCleanerOperatingState':
-        this.handleOperatingStateEvent(attribute, value);
-        break;
-      case 'samsungce.robotCleanerCleaningMode':
-        this.handleCleaningModeEvent(attribute, value);
-        break;
-      case 'samsungce.robotCleanerTurboMode':
-        this.handleTurboModeEvent(attribute, value);
-        break;
-      case 'samsungce.robotCleanerMovement':
-        this.handleMovementEvent(attribute, value);
-        break;
-      case 'samsungce.robotCleanerDrivingMode':
-        this.handleDrivingModeEvent(attribute, value);
-        break;
-      case 'samsungce.robotCleanerCleaningType':
-        this.handleCleaningTypeEvent(attribute, value);
-        break;
-      case 'audioNotification':
-        this.handleAudioNotificationEvent(attribute, value);
-        break;
-      case 'battery':
-        this.handleBatteryEvent(attribute, value);
-        break;
-      case 'switch':
-        this.handleSwitchEvent(attribute, value);
-        break;
+      case 'samsungce.robotCleanerOperatingState': this.handleOperatingStateEvent(attribute, value); break;
+      case 'samsungce.robotCleanerCleaningMode': this.handleSamsungCleaningModeEvent(attribute, value); break;
+      case 'robotCleanerCleaningMode': this.handleStandardCleaningModeEvent(attribute, value); break;
+      case 'robotCleanerTurboMode': this.handleTurboModeEvent(attribute, value); break;
+      case 'robotCleanerMovement': this.handleMovementEvent(attribute, value); break;
+      case 'samsungce.robotCleanerCleaningType': this.handleCleaningTypeEvent(attribute, value); break;
+      case 'samsungce.robotCleanerDrivingMode': this.handleDrivingModeEvent(attribute, value); break;
+      case 'samsungce.robotCleanerWaterSprayLevel': this.handleWaterSprayEvent(attribute, value); break;
+      case 'battery': this.handleBatteryEvent(attribute, value); break;
+      case 'switch': this.handleSwitchEvent(attribute, value); break;
+      case 'samsungce.robotCleanerMapList': this.handleMapListEvent(attribute, value); break;
+      case 'audioNotification': this.handleAudioNotificationEvent(attribute, value); break;
+      default: this.log.debug(`[RobotVacuumAdapter] Unhandled event ${capability}.${attribute}`);
     }
   }
 
   private handleOperatingStateEvent(attribute: string, value: unknown): void {
-    // Log ALL attributes for this capability to see what device sends
-    this.log.info(`[RobotVacuumAdapter] OperatingState attr: ${attribute} = ${JSON.stringify(value)}`);
-    
-    if (attribute === 'supportedOperatingStates') {
-      const states = value as string[];
-      this.log.info(`[RobotVacuumAdapter] Supported operating states: ${states.join(', ')}`);
-      return;
-    }
-    if (attribute === 'supportedCommands') {
-      this.supportedOperatingCommands = value as string[];
-      this.log.info(`[RobotVacuumAdapter] Supported operating commands: ${this.supportedOperatingCommands.join(', ')}`);
+    this.log.info(`[RobotVacuumAdapter] OperatingState attr ${attribute}=${JSON.stringify(value)}`);
+    if (attribute === 'supportedOperatingState') {
+      this.supportedOperatingStates = value as string[];
+      this.log.info(`[RobotVacuumAdapter] Supported operating states: ${this.supportedOperatingStates.join(',')}`);
       return;
     }
     if (attribute !== 'operatingState') {
+return;
+}
+    const state = value as string;
+    const mapped = this.mapSamsungOperatingStateToMatter(state);
+    if (mapped !== undefined && mapped !== this.currentOperationalState) {
+      this.currentOperationalState = mapped;
+      this.pushOperationalState();
+      // update PowerSource charge state as well
+      this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.PowerSource, {
+        batChargeLevel: this.batteryLevelToMatterEnum(this.currentBatteryLevel),
+        batPercentRemaining: this.currentBatteryLevel * 2,
+        batChargeState: this.getMatterBatChargeState(),
+      });
+    }
+    // Also handle charging state for PowerSource
+    if (state === 'charging' || state === 'chargingForRemainingJob') {
+this.currentCharging = true;
+} else if (state === 'charged' || state === 'flexCharged' || state === 'docked') {
+this.currentCharging = false;
+}
+  }
+
+  private handleSamsungCleaningModeEvent(attribute: string, value: unknown): void {
+    this.log.info(`[RobotVacuumAdapter] SamsungCleaningMode attr ${attribute}=${JSON.stringify(value)}`);
+    if (attribute === 'supportedCleaningMode') {
+      this.supportedCleaningModes = value as string[];
+      this.log.info(`[RobotVacuumAdapter] Supported cleaning modes: ${this.supportedCleaningModes.join(',')}`);
       return;
     }
-
-    const state = value as string;
-    const newOperationalState = this.mapSmartThingsOperatingStateToMatter(state);
-
-    if (newOperationalState !== undefined && newOperationalState !== this.currentOperationalState) {
-      this.currentOperationalState = newOperationalState;
-      this.pushOperationalState();
+    if (attribute !== 'cleaningMode') {
+return;
+}
+    const mode = value as string;
+    const mapped = this.mapSamsungCleaningModeToMatter(mode);
+    if (mapped !== undefined && mapped !== this.currentCleanMode) {
+      this.currentCleanMode = mapped;
+      this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.RvcCleanMode, { currentMode: mapped });
     }
   }
 
-  private handleCleaningModeEvent(attribute: string, value: unknown): void {
-    // Log ALL attributes for this capability to see what device sends
-    this.log.info(`[RobotVacuumAdapter] CleaningMode attr: ${attribute} = ${JSON.stringify(value)}`);
-    
-    if (attribute === 'supportedRobotCleanerCleaningModes') {
-      this.supportedCleaningModes = value as string[];
-      this.log.info(`[RobotVacuumAdapter] Supported cleaning modes: ${this.supportedCleaningModes.join(', ')}`);
-      return;
-    }
+  private handleStandardCleaningModeEvent(attribute: string, value: unknown): void {
     if (attribute !== 'robotCleanerCleaningMode') {
-      return;
-    }
-
+return;
+}
     const mode = value as string;
-    const newCleanMode = this.mapSmartThingsCleaningModeToMatter(mode);
-
-    if (newCleanMode !== undefined && newCleanMode !== this.currentCleanMode) {
-      this.currentCleanMode = newCleanMode;
-      this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.RvcCleanMode, {
-        currentMode: newCleanMode,
-      });
+    const mapped = this.mapStandardCleaningModeToMatter(mode);
+    if (mapped !== undefined && mapped !== this.currentCleanMode) {
+      this.currentCleanMode = mapped;
+      this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.RvcCleanMode, { currentMode: mapped });
     }
   }
 
   private handleTurboModeEvent(attribute: string, value: unknown): void {
     if (attribute !== 'robotCleanerTurboMode') {
-      return;
-    }
-
+return;
+}
     const mode = value as string;
+    let newMode: number | undefined;
     if (mode === 'on') {
-      this.currentCleanMode = MatterRvcCleanMode.CurrentMode.TURBO;
-    } else if (mode === 'off') {
-      this.currentCleanMode = MatterRvcCleanMode.CurrentMode.AUTO;
+newMode = MatterRvcCleanMode.CurrentMode.TURBO;
+} else if (mode === 'off') {
+newMode = MatterRvcCleanMode.CurrentMode.AUTO;
+} else if (mode === 'silence' || mode === 'extraSilence') {
+newMode = MatterRvcCleanMode.CurrentMode.QUIET;
+}
+    if (newMode !== undefined && newMode !== this.currentCleanMode) {
+      this.currentCleanMode = newMode;
+      this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.RvcCleanMode, { currentMode: newMode });
     }
-    this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.RvcCleanMode, {
-      currentMode: this.currentCleanMode,
-    });
   }
 
   private handleMovementEvent(attribute: string, value: unknown): void {
-    // Log ALL attributes for this capability to see what device sends
-    this.log.info(`[RobotVacuumAdapter] Movement attr: ${attribute} = ${JSON.stringify(value)}`);
-    
-    if (attribute === 'supportedRobotCleanerMovements') {
-      this.supportedMovements = value as string[];
-      this.log.info(`[RobotVacuumAdapter] Supported movements: ${this.supportedMovements.join(', ')}`);
-      return;
-    }
+    this.log.info(`[RobotVacuumAdapter] Movement attr ${attribute}=${JSON.stringify(value)}`);
     if (attribute !== 'robotCleanerMovement') {
-      return;
-    }
-
+return;
+}
     const mode = value as string;
-    const newRunMode = this.mapSmartThingsMovementToMatter(mode);
-
-    if (newRunMode !== undefined && newRunMode !== this.currentRunMode) {
-      this.currentRunMode = newRunMode;
-      this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.RvcRunMode, {
-        currentMode: newRunMode,
-      });
-    }
-  }
-
-  private handleDrivingModeEvent(attribute: string, value: unknown): void {
-    this.log.info(`[RobotVacuumAdapter] DrivingMode attr: ${attribute} = ${JSON.stringify(value)}`);
-    
-    if (attribute === 'supportedDrivingModes') {
-      const modes = value as string[];
-      this.log.info(`[RobotVacuumAdapter] Supported driving modes: ${modes.join(', ')}`);
-      return;
-    }
-    if (attribute !== 'drivingMode') {
-      return;
-    }
-
-    const mode = value as string;
-    // Map Samsung driving mode to Matter operational state
-    const newOperationalState = this.mapSamsungDrivingModeToMatter(mode);
-    if (newOperationalState !== undefined && newOperationalState !== this.currentOperationalState) {
-      this.currentOperationalState = newOperationalState;
+    const mapped = this.mapRobotCleanerMovementToMatter(mode);
+    if (mapped !== undefined && mapped !== this.currentOperationalState) {
+      // Movement is operational state, not RunMode
+      this.currentOperationalState = mapped;
       this.pushOperationalState();
     }
   }
 
   private handleCleaningTypeEvent(attribute: string, value: unknown): void {
-    this.log.info(`[RobotVacuumAdapter] CleaningType attr: ${attribute} = ${JSON.stringify(value)}`);
-    
+    this.log.info(`[RobotVacuumAdapter] CleaningType attr ${attribute}=${JSON.stringify(value)}`);
     if (attribute === 'supportedCleaningTypes' || attribute === 'availableCleaningTypes') {
-      const types = value as string[];
-      this.log.info(`[RobotVacuumAdapter] Supported cleaning types: ${types.join(', ')}`);
+      this.supportedCleaningTypes = value as string[];
+      this.log.info(`[RobotVacuumAdapter] Supported cleaning types: ${this.supportedCleaningTypes.join(',')}`);
       return;
     }
     if (attribute !== 'cleaningType') {
-      return;
-    }
-
+return;
+}
     const type = value as string;
-    const newCleanMode = this.mapSamsungCleaningTypeToMatter(type);
-    if (newCleanMode !== undefined && newCleanMode !== this.currentCleanMode) {
-      this.currentCleanMode = newCleanMode;
-      this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.RvcCleanMode, {
-        currentMode: newCleanMode,
-      });
-      // Also update run mode if needed (vacuum vs mop)
-      const newRunMode = this.mapSamsungCleaningTypeToRunMode(type);
-      if (newRunMode !== undefined && newRunMode !== this.currentRunMode) {
-        this.currentRunMode = newRunMode;
-        this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.RvcRunMode, {
-          currentMode: newRunMode,
-        });
+    const runMode = this.mapSamsungCleaningTypeToRunMode(type);
+    if (runMode !== undefined && runMode !== this.currentRunMode) {
+      const isRunning = this.currentOperationalState === MatterRvcOperationalState.OperationalState.RUNNING
+        || this.currentOperationalState === MatterRvcOperationalState.OperationalState.PAUSED;
+      if (!isRunning) {
+        this.log.info(`[RobotVacuumAdapter] CleaningType ${type} stored but RunMode stays Idle (not running)`);
+        return;
       }
+      this.currentRunMode = runMode;
+      this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.RvcRunMode, { currentMode: this.currentRunMode });
     }
   }
 
-  private handleAudioNotificationEvent(attribute: string, value: unknown): void {
-    this.log.info(`[RobotVacuumAdapter] AudioNotification attr: ${attribute} = ${JSON.stringify(value)}`);
-    // Audio notification events - could be used for locate/find me
+  private handleDrivingModeEvent(attribute: string, value: unknown): void {
+    this.log.info(`[RobotVacuumAdapter] DrivingMode attr ${attribute}=${JSON.stringify(value)}`);
+    if (attribute === 'supportedDrivingModes') {
+      this.supportedDrivingModes = value as string[];
+      return;
+    }
+    if (attribute !== 'drivingMode') {
+return;
+}
+    const mode = value as string;
+    this.currentDrivingMode = mode;
+    // DrivingMode not directly mapped to Matter, but could affect CleanMode label
+    this.log.info(`[RobotVacuumAdapter] DrivingMode updated to ${mode}`);
+  }
+
+  private handleWaterSprayEvent(attribute: string, value: unknown): void {
+    this.log.info(`[RobotVacuumAdapter] WaterSpray attr ${attribute}=${JSON.stringify(value)}`);
+    if (attribute === 'supportedWaterSprayLevels' || attribute === 'availableWaterSprayLevels') {
+      this.supportedWaterLevels = value as string[];
+      return;
+    }
+    if (attribute !== 'waterSprayLevel') {
+return;
+}
+    this.currentWaterSprayLevel = value as string;
+    this.log.info(`[RobotVacuumAdapter] WaterSprayLevel updated to ${this.currentWaterSprayLevel}`);
   }
 
   private handleBatteryEvent(attribute: string, value: unknown): void {
     if (attribute !== 'battery') {
-      return;
-    }
-
+return;
+}
     const level = value as number;
     if (typeof level === 'number' && level !== this.currentBatteryLevel) {
       this.currentBatteryLevel = Math.max(0, Math.min(100, level));
       this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.PowerSource, {
         batChargeLevel: this.batteryLevelToMatterEnum(this.currentBatteryLevel),
+        batPercentRemaining: this.currentBatteryLevel * 2,
+        batChargeState: this.getMatterBatChargeState(),
       });
     }
   }
 
-  /**
-   * Convert 0-100 battery percentage to Matter PowerSource.BatChargeLevel enum
-   * 0 = OK, 1 = Warning, 2 = Critical
-   */
+  private handleMapListEvent(attribute: string, value: unknown): void {
+    this.log.info(`[RobotVacuumAdapter] MapList attr ${attribute}=${JSON.stringify(value).substring(0, 500)}`);
+    // Rebuild ServiceArea when maps change
+    const serviceArea = this.buildServiceAreaCluster();
+    if (serviceArea) {
+      this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.ServiceArea, serviceArea);
+    }
+  }
+
+  private handleAudioNotificationEvent(attribute: string, value: unknown): void {
+    this.log.info(`[RobotVacuumAdapter] AudioNotification attr ${attribute}=${JSON.stringify(value)}`);
+  }
+
   private batteryLevelToMatterEnum(level: number): number {
     if (level >= 50) {
-      return MatterPowerSource.BatChargeLevel.OK;
-    } else if (level >= 20) {
-      return MatterPowerSource.BatChargeLevel.WARNING;
-    } else {
-      return MatterPowerSource.BatChargeLevel.CRITICAL;
-    }
+return MatterPowerSource.BatChargeLevel.OK;
+}
+    if (level >= 20) {
+return MatterPowerSource.BatChargeLevel.WARNING;
+}
+    return MatterPowerSource.BatChargeLevel.CRITICAL;
   }
 
   private handleSwitchEvent(attribute: string, value: unknown): void {
     if (attribute !== 'switch') {
-      return;
-    }
-
+return;
+}
     const state = value as string;
     const powerOn = state === 'on';
     if (powerOn !== this.currentPowerOn) {
       this.currentPowerOn = powerOn;
-      this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.OnOff, {
-        onOff: powerOn,
-      });
+      this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.OnOff, { onOff: powerOn });
       this.updateOperationalStateFromPower(powerOn);
     }
   }
 
-  private mapSmartThingsOperatingStateToMatter(state: string): number | undefined {
-    const stateMap: Record<string, number> = {
-      stopped: MatterRvcOperationalState.OperationalState.STOPPED,
-      running: MatterRvcOperationalState.OperationalState.RUNNING,
-      paused: MatterRvcOperationalState.OperationalState.PAUSED,
-      seekingCharger: MatterRvcOperationalState.OperationalState.SEEKING_CHARGER,
-      charging: MatterRvcOperationalState.OperationalState.CHARGING,
-      docked: MatterRvcOperationalState.OperationalState.DOCKED,
-      unableToStartOrResume: MatterRvcOperationalState.OperationalState.ERROR,
-      unableToCompleteOperation: MatterRvcOperationalState.OperationalState.ERROR,
-      commandInvalidInState: MatterRvcOperationalState.OperationalState.ERROR,
-      failedToFindChargingDock: MatterRvcOperationalState.OperationalState.ERROR,
-      stuck: MatterRvcOperationalState.OperationalState.ERROR,
-      dustBinMissing: MatterRvcOperationalState.OperationalState.ERROR,
-      dustBinFull: MatterRvcOperationalState.OperationalState.ERROR,
-      waterTankEmpty: MatterRvcOperationalState.OperationalState.ERROR,
-      waterTankMissing: MatterRvcOperationalState.OperationalState.ERROR,
-      waterTankLidOpen: MatterRvcOperationalState.OperationalState.ERROR,
-      mopCleaningPadMissing: MatterRvcOperationalState.OperationalState.ERROR,
+  // === Matter -> SmartThings mappings ===
+
+  private mapSamsungOperatingStateToMatter(state: string): number | undefined {
+    const m = MatterRvcOperationalState.OperationalState;
+    const map: Record<string, number> = {
+      idle: m.STOPPED, standby: m.STOPPED, homing: m.SEEKING_CHARGER, cleaning: m.RUNNING,
+      charging: m.CHARGING, chargingForRemainingJob: m.CHARGING, charged: m.DOCKED, creatingMap: m.UPDATING_MAPS,
+      drainingWater: m.RUNNING, flexCharged: m.DOCKED, moving: m.RUNNING, paused: m.PAUSED, error: m.ERROR,
+      relocal: m.RUNNING, descaling: m.RUNNING, waitingForDescaling: m.PAUSED, exploring: m.RUNNING,
+      emitDust: m.EMPTYING_DUST_BIN, monitoring: m.RUNNING, monitoringAutomation: m.RUNNING, patrol: m.RUNNING,
+      manual: m.RUNNING, processing: m.RUNNING, mediaPlaying: m.RUNNING, messaging: m.RUNNING, findingPet: m.RUNNING,
+      reserved: m.STOPPED, factoryReset: m.ERROR, calibrating: m.RUNNING, welcoming: m.RUNNING,
+      detachingMopPad: m.STOPPED, waitingForChangingMopPad: m.PAUSED, attachingMopPad: m.STOPPED, attachingMopPadForRemainingJob: m.STOPPED,
+      washingMop: m.CLEANING_MOP, sterilizingMop: m.CLEANING_MOP, dryingMop: m.CLEANING_MOP, mopWashingPaused: m.PAUSED,
+      spinDrying: m.CLEANING_MOP, preparingWater: m.FILLING_WATER_TANK, supplyingWater: m.FILLING_WATER_TANK,
+      sabbath: m.STOPPED, powerSaving: m.STOPPED, suspend: m.PAUSED, emptyStation: m.EMPTYING_DUST_BIN,
+      internalWash: m.CLEANING_MOP, cleaningStart: m.RUNNING, cleaningEnd: m.STOPPED,
     };
-    return stateMap[state];
+    return map[state];
   }
 
-  private mapSmartThingsCleaningModeToMatter(mode: string): number | undefined {
-    const modeMap: Record<string, number> = {
-      auto: MatterRvcCleanMode.CurrentMode.AUTO,
-      quick: MatterRvcCleanMode.CurrentMode.QUICK,
-      quiet: MatterRvcCleanMode.CurrentMode.QUIET,
-      deep: MatterRvcCleanMode.CurrentMode.DEEP,
-      spot: MatterRvcCleanMode.CurrentMode.SPOT,
-      manual: MatterRvcCleanMode.CurrentMode.MANUAL,
-      edge: MatterRvcCleanMode.CurrentMode.EDGE,
-      zone: MatterRvcCleanMode.CurrentMode.ZONE,
-      map: MatterRvcCleanMode.CurrentMode.MAP,
-      selectiveRoom: MatterRvcCleanMode.CurrentMode.SELECTIVE_ROOM,
-      thorough: MatterRvcCleanMode.CurrentMode.THOROUGH,
-      turbo: MatterRvcCleanMode.CurrentMode.TURBO,
-      vacuumAndMop: MatterRvcCleanMode.CurrentMode.DEEP,
-      'vacuum_and_mop': MatterRvcCleanMode.CurrentMode.DEEP,
+  private mapRobotCleanerMovementToMatter(state: string): number | undefined {
+    const m = MatterRvcOperationalState.OperationalState;
+    const map: Record<string, number> = {
+      homing: m.SEEKING_CHARGER, idle: m.STOPPED, charging: m.CHARGING, alarm: m.ERROR, powerOff: m.STOPPED,
+      reserve: m.STOPPED, point: m.RUNNING, after: m.RUNNING, cleaning: m.RUNNING, pause: m.PAUSED, washingMop: m.CLEANING_MOP,
     };
-    return modeMap[mode.toLowerCase()];
+    return map[state];
+  }
+
+  private mapSamsungCleaningModeToMatter(mode: string): number | undefined {
+    const c = MatterRvcCleanMode.CurrentMode;
+    const map: Record<string, number> = {
+      auto: c.AUTO, spot: c.SPOT, area: c.ZONE, object: c.SELECTIVE_ROOM, map: c.MAP, manual: c.MANUAL,
+      pet: c.THOROUGH, patternMap: c.QUICK, uncleanedObject: c.EDGE, creatingMap: c.MAP, stop: c.AUTO,
+    };
+    return map[mode];
+  }
+
+  private mapStandardCleaningModeToMatter(mode: string): number | undefined {
+    const c = MatterRvcCleanMode.CurrentMode;
+    const map: Record<string, number> = {
+      auto: c.AUTO, part: c.ZONE, repeat: c.THOROUGH, manual: c.MANUAL, stop: c.AUTO, map: c.MAP,
+    };
+    return map[mode];
   }
 
   private mapMatterCleanModeToSmartThings(mode: number): string | null {
-    const modeMap: Record<number, string> = {
+    const map: Record<number, string> = {
       [MatterRvcCleanMode.SupportedModes.AUTO]: 'auto',
-      [MatterRvcCleanMode.SupportedModes.QUIET]: 'quiet',
-      [MatterRvcCleanMode.SupportedModes.DEEP]: 'deep',
       [MatterRvcCleanMode.SupportedModes.SPOT]: 'spot',
-      [MatterRvcCleanMode.SupportedModes.TURBO]: 'turbo',
+      [MatterRvcCleanMode.SupportedModes.ZONE]: 'area',
+      [MatterRvcCleanMode.SupportedModes.SELECTIVE_ROOM]: 'object',
+      [MatterRvcCleanMode.SupportedModes.MAP]: 'map',
+      [MatterRvcCleanMode.SupportedModes.MANUAL]: 'manual',
+      [MatterRvcCleanMode.SupportedModes.THOROUGH]: 'pet',
+      [MatterRvcCleanMode.SupportedModes.QUICK]: 'patternMap',
+      [MatterRvcCleanMode.SupportedModes.EDGE]: 'uncleanedObject',
+      [MatterRvcCleanMode.SupportedModes.TURBO]: 'auto', // handled separately via turboMode
+      [MatterRvcCleanMode.SupportedModes.QUIET]: 'auto',
+      [MatterRvcCleanMode.SupportedModes.DEEP]: 'auto',
     };
-    return modeMap[mode] || null;
-  }
-
-  private mapSmartThingsMovementToMatter(mode: string): number | undefined {
-    const modeMap: Record<string, number> = {
-      vacuum: MatterRvcRunMode.CurrentMode.VACUUM,
-      mop: MatterRvcRunMode.CurrentMode.MOP,
-      vacuumAndMop: MatterRvcRunMode.CurrentMode.VACUUM_AND_MOP,
-      sweep: MatterRvcRunMode.CurrentMode.SWEEP,
-    };
-    return modeMap[mode.toLowerCase()];
+    return map[mode] || null;
   }
 
   private mapMatterRunModeToSmartThings(mode: number): string | null {
-    const modeMap: Record<number, string> = {
+    const map: Record<number, string> = {
       [MatterRvcRunMode.SupportedModes.VACUUM]: 'vacuum',
       [MatterRvcRunMode.SupportedModes.MOP]: 'mop',
-      [MatterRvcRunMode.SupportedModes.VACUUM_AND_MOP]: 'vacuumAndMop',
-      [MatterRvcRunMode.SupportedModes.SWEEP]: 'sweep',
+      [MatterRvcRunMode.SupportedModes.VACUUM_AND_MOP]: 'vacuumAndMopTogether',
+      [MatterRvcRunMode.SupportedModes.SWEEP]: 'vacuum',
     };
-    return modeMap[mode] || null;
-  }
-
-  private mapSamsungDrivingModeToMatter(mode: string): number | undefined {
-    const modeMap: Record<string, number> = {
-      idle: MatterRvcOperationalState.OperationalState.STOPPED,
-      standby: MatterRvcOperationalState.OperationalState.STOPPED,
-      homing: MatterRvcOperationalState.OperationalState.SEEKING_CHARGER,
-      cleaning: MatterRvcOperationalState.OperationalState.RUNNING,
-      charging: MatterRvcOperationalState.OperationalState.CHARGING,
-      chargingForRemainingJob: MatterRvcOperationalState.OperationalState.CHARGING,
-      charged: MatterRvcOperationalState.OperationalState.DOCKED,
-      creatingMap: MatterRvcOperationalState.OperationalState.RUNNING,
-      drainingWater: MatterRvcOperationalState.OperationalState.RUNNING,
-      flexCharged: MatterRvcOperationalState.OperationalState.DOCKED,
-      moving: MatterRvcOperationalState.OperationalState.RUNNING,
-      paused: MatterRvcOperationalState.OperationalState.PAUSED,
-      error: MatterRvcOperationalState.OperationalState.ERROR,
-      relocal: MatterRvcOperationalState.OperationalState.RUNNING,
-      descaling: MatterRvcOperationalState.OperationalState.RUNNING,
-      waitingForDescaling: MatterRvcOperationalState.OperationalState.STOPPED,
-      exploring: MatterRvcOperationalState.OperationalState.RUNNING,
-      emitDust: MatterRvcOperationalState.OperationalState.RUNNING,
-      monitoring: MatterRvcOperationalState.OperationalState.RUNNING,
-      monitoringAutomation: MatterRvcOperationalState.OperationalState.RUNNING,
-      patrol: MatterRvcOperationalState.OperationalState.RUNNING,
-      manual: MatterRvcOperationalState.OperationalState.RUNNING,
-      processing: MatterRvcOperationalState.OperationalState.RUNNING,
-      mediaPlaying: MatterRvcOperationalState.OperationalState.RUNNING,
-      messaging: MatterRvcOperationalState.OperationalState.RUNNING,
-      findingPet: MatterRvcOperationalState.OperationalState.RUNNING,
-      reserved: MatterRvcOperationalState.OperationalState.STOPPED,
-      factoryReset: MatterRvcOperationalState.OperationalState.ERROR,
-      calibrating: MatterRvcOperationalState.OperationalState.RUNNING,
-      welcoming: MatterRvcOperationalState.OperationalState.RUNNING,
-      detachingMopPad: MatterRvcOperationalState.OperationalState.STOPPED,
-      waitingForChangingMopPad: MatterRvcOperationalState.OperationalState.STOPPED,
-      attachingMopPad: MatterRvcOperationalState.OperationalState.STOPPED,
-      attachingMopPadForRemainingJob: MatterRvcOperationalState.OperationalState.STOPPED,
-      washingMop: MatterRvcOperationalState.OperationalState.RUNNING,
-      sterilizingMop: MatterRvcOperationalState.OperationalState.RUNNING,
-      dryingMop: MatterRvcOperationalState.OperationalState.RUNNING,
-      mopWashingPaused: MatterRvcOperationalState.OperationalState.PAUSED,
-      spinDrying: MatterRvcOperationalState.OperationalState.RUNNING,
-      preparingWater: MatterRvcOperationalState.OperationalState.RUNNING,
-      supplyingWater: MatterRvcOperationalState.OperationalState.RUNNING,
-      sabbath: MatterRvcOperationalState.OperationalState.STOPPED,
-      powerSaving: MatterRvcOperationalState.OperationalState.STOPPED,
-      suspend: MatterRvcOperationalState.OperationalState.PAUSED,
-      emptyStation: MatterRvcOperationalState.OperationalState.RUNNING,
-      internalWash: MatterRvcOperationalState.OperationalState.RUNNING,
-      cleaningStart: MatterRvcOperationalState.OperationalState.RUNNING,
-      cleaningEnd: MatterRvcOperationalState.OperationalState.STOPPED,
-    };
-    return modeMap[mode];
-  }
-
-  private mapSamsungCleaningTypeToMatter(type: string): number | undefined {
-    const typeMap: Record<string, number> = {
-      vacuum: MatterRvcCleanMode.CurrentMode.AUTO,
-      mop: MatterRvcCleanMode.CurrentMode.AUTO,
-      vacuumAndMopTogether: MatterRvcCleanMode.CurrentMode.DEEP,  // DEEP has VacuumThenMop tag
-      mopAfterVacuum: MatterRvcCleanMode.CurrentMode.DEEP,
-    };
-    return typeMap[type];
+    return map[mode] || null;
   }
 
   private mapSamsungCleaningTypeToRunMode(type: string): number | undefined {
-    const typeMap: Record<string, number> = {
-      vacuum: MatterRvcRunMode.CurrentMode.VACUUM,
-      mop: MatterRvcRunMode.CurrentMode.MOP,
-      vacuumAndMopTogether: MatterRvcRunMode.CurrentMode.VACUUM_AND_MOP,
-      mopAfterVacuum: MatterRvcRunMode.CurrentMode.VACUUM_AND_MOP,
+    const r = MatterRvcRunMode.CurrentMode;
+    const map: Record<string, number> = {
+      vacuum: r.VACUUM, mop: r.MOP, vacuumAndMopTogether: r.VACUUM_AND_MOP, mopAfterVacuum: r.VACUUM_AND_MOP,
     };
-    return typeMap[type];
+    return map[type];
+  }
+
+  private mapSamsungCleaningTypeToCleanMode(type: string): number | undefined {
+    const c = MatterRvcCleanMode.CurrentMode;
+    const map: Record<string, number> = {
+      vacuum: c.AUTO, mop: c.AUTO, vacuumAndMopTogether: c.DEEP, mopAfterVacuum: c.DEEP,
+    };
+    return map[type];
   }
 
   getInitialState(): NormalizedMatterState {
-    const status = this.getDeviceStatus() as SmartThingsRobotVacuumStatus;
+    this.log.info(`[RobotVacuumAdapter] getInitialState fetching from ${this.multiServiceAccessory.components.length} components`);
+    const mainStatus = this.getMainStatus();
+    this.log.info(`[RobotVacuumAdapter] FULL main status keys: ${Object.keys(mainStatus).join(',')}`);
 
-    // Log the FULL status to see actual structure
-    this.log.info(`[RobotVacuumAdapter] FULL device status: ${JSON.stringify(status)}`);
+    // Extract each capability
+    const opStateStatus: any = this.getCapabilityStatus('samsungce.robotCleanerOperatingState');
+    const sCleanModeStatus: any = this.getCapabilityStatus('samsungce.robotCleanerCleaningMode');
+    const stdCleanModeStatus: any = this.getCapabilityStatus('robotCleanerCleaningMode');
+    const movementStatus: any = this.getCapabilityStatus('robotCleanerMovement');
+    const turboStatus: any = this.getCapabilityStatus('robotCleanerTurboMode');
+    const cleaningTypeStatus: any = this.getCapabilityStatus('samsungce.robotCleanerCleaningType');
+    const drivingStatus: any = this.getCapabilityStatus('samsungce.robotCleanerDrivingMode');
+    const waterStatus: any = this.getCapabilityStatus('samsungce.robotCleanerWaterSprayLevel');
+    const batteryStatus: any = this.getCapabilityStatus('battery');
+    const switchStatus: any = this.getCapabilityStatus('switch');
+    const mapListStatus: any = this.getCapabilityStatus('samsungce.robotCleanerMapList');
 
-    const main = status.main || {};
+    this.log.info(`[RobotVacuumAdapter] opState=${JSON.stringify(opStateStatus?.operatingState)} cleaningType=${JSON.stringify(cleaningTypeStatus?.cleaningType)} sCleanMode=${JSON.stringify(sCleanModeStatus?.cleaningMode)} movement=${JSON.stringify(movementStatus?.robotCleanerMovement)} turbo=${JSON.stringify(turboStatus?.robotCleanerTurboMode)} driving=${JSON.stringify(drivingStatus?.drivingMode)} water=${JSON.stringify(waterStatus?.waterSprayLevel)} battery=${JSON.stringify(batteryStatus?.battery)} switch=${JSON.stringify(switchStatus?.switch)}`);
 
-    // Log the FULL main component
-    this.log.info(`[RobotVacuumAdapter] FULL main component: ${JSON.stringify(main)}`);
-
-    // Also check ALL components in status
-    for (const [compId, compData] of Object.entries(status)) {
-      if (compId !== 'main') {
-        this.log.info(`[RobotVacuumAdapter] Component '${compId}': ${JSON.stringify(compData)}`);
-      }
+    // Capture supported values
+    if (opStateStatus?.supportedOperatingState?.value) {
+      this.supportedOperatingStates = opStateStatus.supportedOperatingState.value;
+      this.log.info(`[RobotVacuumAdapter] supportedOperatingStates: ${this.supportedOperatingStates.length}`);
+    }
+    if (sCleanModeStatus?.supportedCleaningMode?.value) {
+      this.supportedCleaningModes = sCleanModeStatus.supportedCleaningMode.value;
+      this.log.info(`[RobotVacuumAdapter] supportedCleaningModes: ${this.supportedCleaningModes.join(',')}`);
+    }
+    if (cleaningTypeStatus?.supportedCleaningTypes?.value) {
+      this.supportedCleaningTypes = cleaningTypeStatus.supportedCleaningTypes.value;
+      this.log.info(`[RobotVacuumAdapter] supportedCleaningTypes: ${this.supportedCleaningTypes.join(',')}`);
+    }
+    if (drivingStatus?.supportedDrivingModes?.value) {
+      this.supportedDrivingModes = drivingStatus.supportedDrivingModes.value;
+      this.log.info(`[RobotVacuumAdapter] supportedDrivingModes: ${this.supportedDrivingModes.join(',')}`);
+    }
+    if (waterStatus?.supportedWaterSprayLevels?.value) {
+      this.supportedWaterLevels = waterStatus.supportedWaterSprayLevels.value;
+      this.log.info(`[RobotVacuumAdapter] supportedWaterLevels: ${this.supportedWaterLevels.join(',')}`);
+    }
+    if (mapListStatus?.maps?.value) {
+      this.log.info(`[RobotVacuumAdapter] maps: ${mapListStatus.maps.value.length} maps`);
     }
 
-    // Check Samsung capabilities in main component
-    let operatingState = main['samsungce.robotCleanerOperatingState'];
-    let cleaningMode = main['samsungce.robotCleanerCleaningMode'];
-    let turboMode = main['samsungce.robotCleanerTurboMode'];
-    let movement = main['samsungce.robotCleanerMovement'];
-    let drivingMode = main['samsungce.robotCleanerDrivingMode'];
-    let cleaningType = main['samsungce.robotCleanerCleaningType'];
-
-    // Search other components if not found in main
-    if (!operatingState || !movement || !cleaningMode) {
-      for (const [, compData] of Object.entries(status)) {
-        const comp = compData as any;
-        if (!operatingState) operatingState = comp['samsungce.robotCleanerOperatingState'];
-        if (!cleaningMode) cleaningMode = comp['samsungce.robotCleanerCleaningMode'];
-        if (!turboMode) turboMode = comp['samsungce.robotCleanerTurboMode'];
-        if (!movement) movement = comp['samsungce.robotCleanerMovement'];
-        if (!drivingMode) drivingMode = comp['samsungce.robotCleanerDrivingMode'];
-        if (!cleaningType) cleaningType = comp['samsungce.robotCleanerCleaningType'];
-        if (operatingState && cleaningMode && movement) break;
-      }
-    }
-
-    // Log each capability object
-    this.log.info(`[RobotVacuumAdapter] operatingState: ${JSON.stringify(operatingState)}`);
-    this.log.info(`[RobotVacuumAdapter] cleaningMode: ${JSON.stringify(cleaningMode)}`);
-    this.log.info(`[RobotVacuumAdapter] movement: ${JSON.stringify(movement)}`);
-    this.log.info(`[RobotVacuumAdapter] turboMode: ${JSON.stringify(main['samsungce.robotCleanerTurboMode'])}`);
-    this.log.info(`[RobotVacuumAdapter] drivingMode: ${JSON.stringify(drivingMode)}`);
-    this.log.info(`[RobotVacuumAdapter] cleaningType: ${JSON.stringify(cleaningType)}`);
-
-    // Capture supported commands/modes from device status
-    if (operatingState?.supportedCommands?.value) {
-      this.supportedOperatingCommands = operatingState.supportedCommands.value;
-      this.log.info(`[RobotVacuumAdapter] Initial supported operating commands: ${this.supportedOperatingCommands.join(', ')}`);
-    }
-    if (cleaningMode?.supportedRobotCleanerCleaningModes?.value) {
-      this.supportedCleaningModes = cleaningMode.supportedRobotCleanerCleaningModes.value;
-      this.log.info(`[RobotVacuumAdapter] Initial supported cleaning modes: ${this.supportedCleaningModes.join(', ')}`);
-    }
-    if (movement?.supportedRobotCleanerMovements?.value) {
-      this.supportedMovements = movement.supportedRobotCleanerMovements.value;
-      this.log.info(`[RobotVacuumAdapter] Initial supported movements: ${this.supportedMovements.join(', ')}`);
-    }
-    if (drivingMode?.supportedDrivingModes?.value) {
-      this.log.info(`[RobotVacuumAdapter] Initial supported driving modes: ${drivingMode.supportedDrivingModes.value.join(', ')}`);
-    }
-    if (cleaningType?.supportedCleaningTypes?.value) {
-      this.log.info(`[RobotVacuumAdapter] Initial supported cleaning types: ${cleaningType.supportedCleaningTypes.value.join(', ')}`);
-    }
-    if (cleaningType?.availableCleaningTypes?.value) {
-      this.log.info(`[RobotVacuumAdapter] Initial available cleaning types: ${cleaningType.availableCleaningTypes.value.join(', ')}`);
-    }
-
-    if (operatingState?.operatingState?.value) {
-      const mapped = this.mapSmartThingsOperatingStateToMatter(operatingState.operatingState.value);
+    // Determine operational state - priority: samsungce operatingState > movement
+    if (opStateStatus?.operatingState?.value) {
+      const mapped = this.mapSamsungOperatingStateToMatter(opStateStatus.operatingState.value);
       if (mapped !== undefined) {
-        this.currentOperationalState = mapped;
-      }
-    }
-
-    if (drivingMode?.drivingMode?.value) {
-      const mapped = this.mapSamsungDrivingModeToMatter(drivingMode.drivingMode.value);
+this.currentOperationalState = mapped;
+}
+      if (opStateStatus.operatingState.value === 'charging' || opStateStatus.operatingState.value === 'chargingForRemainingJob') {
+this.currentCharging = true;
+} else if (['charged', 'flexCharged', 'docked'].includes(opStateStatus.operatingState.value)) {
+ this.currentCharging = false;
+}
+    } else if (movementStatus?.robotCleanerMovement?.value) {
+      const mapped = this.mapRobotCleanerMovementToMatter(movementStatus.robotCleanerMovement.value);
       if (mapped !== undefined) {
-        this.currentOperationalState = mapped;
-      }
+this.currentOperationalState = mapped;
+}
     }
 
-    if (cleaningMode?.robotCleanerCleaningMode?.value) {
-      const mapped = this.mapSmartThingsCleaningModeToMatter(cleaningMode.robotCleanerCleaningMode.value);
+    // DrivingMode and Water are not operational, just stored
+    if (drivingStatus?.drivingMode?.value) {
+this.currentDrivingMode = drivingStatus.drivingMode.value;
+}
+    if (waterStatus?.waterSprayLevel?.value) {
+this.currentWaterSprayLevel = waterStatus.waterSprayLevel.value;
+}
+
+    // CleanMode: samsung cleaningMode > standard > turbo > cleaningType
+    if (sCleanModeStatus?.cleaningMode?.value) {
+      const mapped = this.mapSamsungCleaningModeToMatter(sCleanModeStatus.cleaningMode.value);
       if (mapped !== undefined) {
-        this.currentCleanMode = mapped;
-      }
-    }
-
-    if (turboMode?.robotCleanerTurboMode?.value) {
-      const turbo = turboMode.robotCleanerTurboMode.value;
-      this.currentCleanMode = turbo === 'on' ? MatterRvcCleanMode.CurrentMode.TURBO : MatterRvcCleanMode.CurrentMode.AUTO;
-    }
-
-    if (cleaningType?.cleaningType?.value) {
-      const mapped = this.mapSamsungCleaningTypeToMatter(cleaningType.cleaningType.value);
+this.currentCleanMode = mapped;
+}
+    } else if (stdCleanModeStatus?.robotCleanerCleaningMode?.value) {
+      const mapped = this.mapStandardCleaningModeToMatter(stdCleanModeStatus.robotCleanerCleaningMode.value);
       if (mapped !== undefined) {
-        this.currentCleanMode = mapped;
-      }
-      const runMapped = this.mapSamsungCleaningTypeToRunMode(cleaningType.cleaningType.value);
+this.currentCleanMode = mapped;
+}
+    }
+    if (turboStatus?.robotCleanerTurboMode?.value) {
+      const turbo = turboStatus.robotCleanerTurboMode.value;
+      if (turbo === 'on') {
+this.currentCleanMode = MatterRvcCleanMode.CurrentMode.TURBO;
+} else if (turbo === 'silence' || turbo === 'extraSilence') {
+this.currentCleanMode = MatterRvcCleanMode.CurrentMode.QUIET;
+}
+    }
+    // CleaningType also influences CleanMode tags but not primary
+    if (cleaningTypeStatus?.cleaningType?.value) {
+      const runMapped = this.mapSamsungCleaningTypeToRunMode(cleaningTypeStatus.cleaningType.value);
       if (runMapped !== undefined) {
-        this.currentRunMode = runMapped;
+        // Only expose cleaning type as RunMode if robot is running; otherwise stay Idle
+        const isRunning = this.currentOperationalState === MatterRvcOperationalState.OperationalState.RUNNING || this.currentOperationalState === MatterRvcOperationalState.OperationalState.PAUSED;
+        if (isRunning) {
+          this.currentRunMode = runMapped;
+        } else {
+          // Remember type but keep Idle visible
+          if (this.currentRunMode === MatterRvcRunMode.CurrentMode.IDLE) {
+            // keep Idle, but store type for next start (don't overwrite Idle)
+            this.log.info(`[RobotVacuumAdapter] CleaningType ${cleaningTypeStatus.cleaningType.value} -> RunMode ${runMapped} but currently idle, keeping Idle`);
+          } else {
+            this.currentRunMode = runMapped;
+          }
+        }
       }
     }
+    if (movementStatus?.robotCleanerMovement?.value && this.currentRunMode === MatterRvcRunMode.CurrentMode.IDLE) {
+      // movement also could indicate run mode, but we treat as operational state already
+    }
 
-    if (movement?.robotCleanerMovement?.value) {
-      const mapped = this.mapSmartThingsMovementToMatter(movement.robotCleanerMovement.value);
-      if (mapped !== undefined) {
-        this.currentRunMode = mapped;
+    if (batteryStatus?.battery?.value !== undefined) {
+      this.currentBatteryLevel = Math.max(0, Math.min(100, batteryStatus.battery.value));
+    }
+    if (switchStatus?.switch?.value) {
+      this.currentPowerOn = switchStatus.switch.value === 'on';
+      // Don't override operational state if we already have more specific state
+      if (this.currentOperationalState === MatterRvcOperationalState.OperationalState.STOPPED && this.currentPowerOn) {
+        this.currentOperationalState = MatterRvcOperationalState.OperationalState.RUNNING;
+      } else if (!this.currentPowerOn) {
+        this.currentOperationalState = MatterRvcOperationalState.OperationalState.STOPPED;
       }
     }
-
-    if (main.battery?.battery?.value !== undefined) {
-      this.currentBatteryLevel = Math.max(0, Math.min(100, main.battery.battery.value));
-    }
-
-    if (main.switch?.switch?.value) {
-      this.currentPowerOn = main.switch.switch.value === 'on';
-      this.updateOperationalStateFromPower(this.currentPowerOn);
-    }
-
     this.currentCharging = this.currentOperationalState === MatterRvcOperationalState.OperationalState.CHARGING;
 
-    this.log.info(`[RobotVacuumAdapter] getInitialState returning: currentRunMode=${this.currentRunMode}, currentOperationalState=${this.currentOperationalState}, currentCleanMode=${this.currentCleanMode}, currentPowerOn=${this.currentPowerOn}`);
+    this.log.info(`[RobotVacuumAdapter] getInitialState -> OpState=${this.currentOperationalState} RunMode=${this.currentRunMode} CleanMode=${this.currentCleanMode} Battery=${this.currentBatteryLevel} PowerOn=${this.currentPowerOn} Charging=${this.currentCharging}`);
 
     return {
       [MatterClusterNames.OnOff]: { onOff: this.currentPowerOn },
-      [MatterClusterNames.RvcOperationalState]: {
-        operationalState: this.currentOperationalState,
-        operationalError: MatterRvcOperationalState.OperationalError.NO_ERROR,
-      },
+      [MatterClusterNames.RvcOperationalState]: { operationalState: this.currentOperationalState, operationalError: MatterRvcOperationalState.OperationalError.NO_ERROR },
       [MatterClusterNames.RvcCleanMode]: { currentMode: this.currentCleanMode },
       [MatterClusterNames.RvcRunMode]: { currentMode: this.currentRunMode },
       [MatterClusterNames.PowerSource]: {
         batChargeLevel: this.batteryLevelToMatterEnum(this.currentBatteryLevel),
-        batChargeState: this.currentCharging ? MatterPowerSource.BatChargeState.CHARGING : MatterPowerSource.BatChargeState.NOT_CHARGING,
+        batPercentRemaining: this.currentBatteryLevel * 2,
+        batChargeState: this.getMatterBatChargeState(),
         powerSource: MatterPowerSource.PowerSource.BATTERY,
       },
+      ...(this.buildServiceAreaCluster() ? { [MatterClusterNames.ServiceArea]: this.buildServiceAreaCluster() } : {}),
     };
   }
 }

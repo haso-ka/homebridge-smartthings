@@ -66,7 +66,7 @@ export abstract class BaseMatterAdapter implements MatterAdapter {
   protected getDeviceStatus(): Record<string, unknown> {
     // Log all component IDs to debug
     this.log.info(`[RobotVacuumAdapter] Available components: ${this.multiServiceAccessory.components.map(c => c.componentId).join(', ')}`);
-    
+
     // Try 'main' first, then first available component
     let component = this.multiServiceAccessory.components.find(c => c.componentId === 'main');
     if (!component && this.multiServiceAccessory.components.length > 0) {

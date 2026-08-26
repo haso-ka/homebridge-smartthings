@@ -34,7 +34,7 @@ export class MatterRegistry {
     log: Logger,
     multiServiceAccessory: MultiServiceAccessory,
     accessory: PlatformAccessory,
-    context: MatterDeviceContext
+    context: MatterDeviceContext,
   ): Promise<MatterAdapter | null> {
     const AdapterConstructor = this.adapters.get(deviceType);
     if (!AdapterConstructor) {

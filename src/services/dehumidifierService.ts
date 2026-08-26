@@ -179,7 +179,7 @@ private async setTargetRelativeHumidity(value: CharacteristicValue): Promise<voi
     for (const cap of samsungCaps) {
       const supported = this.isCapabilitySupported(cap.capability);
       const inStatus = (await this.getDeviceStatus())[cap.capability] !== undefined;
-      
+
       // Check both constructor capabilities AND device status
       if (supported || inStatus) {
         try {

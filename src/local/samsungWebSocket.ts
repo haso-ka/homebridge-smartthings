@@ -73,7 +73,7 @@ export class SamsungWebSocket {
       this.log.info(`Samsung WebSocket: Token saved for ${this.ip} — future connections will skip TV authorization popup`);
       this.log.info(
         `Samsung WebSocket: Token for ${this.ip} stored at ${this.tokenFilePath}. ` +
-        `If you ever reset Homebridge storage, you can skip pairing by pasting this token into the ` +
+        'If you ever reset Homebridge storage, you can skip pairing by pasting this token into the ' +
         `"token" field of this device's frameTvDevices config: ${token}`,
       );
     } catch (err) {
@@ -179,7 +179,9 @@ export class SamsungWebSocket {
             ws.terminate();
             // Token is invalid/expired — clear it so next attempt shows popup
             this.token = null;
-            try { fs.unlinkSync(this.tokenFilePath); } catch { /* ignore */ }
+            try {
+ fs.unlinkSync(this.tokenFilePath);
+} catch { /* ignore */ }
             reject(new Error(
               `Samsung WebSocket: Authorization denied by TV at ${this.ip}. ` +
               'Saved token was invalid. Restart Homebridge to retry — the TV will show a new Allow/Deny popup.',

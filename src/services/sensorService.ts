@@ -39,7 +39,7 @@ export abstract class SensorService extends BaseService {
         pollSensorsSeconds,
         this.getSensorState.bind(this),
         this.service,
-        this.platform.Characteristic.MotionDetected
+        this.platform.Characteristic.MotionDetected,
       );
 
       if (timerResult && typeof timerResult === 'object') {

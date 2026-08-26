@@ -8,7 +8,7 @@ import { ShortEvent } from '../webhook/subscriptionHandler';
  * Volume Slider Service (Within Same TV Accessory)
  * Creates a lightbulb service within the TV accessory for volume control.
  * This ensures the volume slider appears in the same HomeKit tile as the TV.
- * 
+ *
  * The slider appears as a lightbulb because iOS doesn't support direct volume sliders.
  * Brightness = Volume (0-100%), On/Off = Mute state (inverted: On = NOT muted)
  */
@@ -93,9 +93,9 @@ export class VolumeSliderService extends BaseService {
 
     const command = value as boolean ? 'unmute' : 'mute';
     this.log.debug(`Volume slider turning ${value ? 'ON (unmuting)' : 'OFF (muting)'} ${this.name}`);
-    
+
     const success = await this.multiServiceAccessory.sendCommand(this.componentId, 'audioMute', command);
-    
+
     if (success) {
       this.log.info(`✅ Volume slider ${command}d successfully for ${this.name}`);
       // Force a status refresh after a delay to get updated values
@@ -123,7 +123,7 @@ export class VolumeSliderService extends BaseService {
             const component = this.multiServiceAccessory.components.find(c => c.componentId === this.componentId);
             const audioVolumeData = component?.status?.audioVolume as any;
             const volume = audioVolumeData?.volume?.value;
-            
+
             if (typeof volume === 'number') {
               const boundedVolume = Math.max(0, Math.min(100, volume)); // Bound between 0-100
               this.log.debug(`Volume slider brightness for ${this.name}: ${boundedVolume}%`);
@@ -152,13 +152,13 @@ export class VolumeSliderService extends BaseService {
 
     const volume = Math.max(0, Math.min(100, value as number)); // Bound between 0-100
     this.log.debug(`Volume slider setting brightness to ${volume}% for ${this.name}`);
-    
+
     // Set volume using proper command mechanism
     const success = await this.multiServiceAccessory.sendCommand(this.componentId, 'audioVolume', 'setVolume', [volume]);
-    
+
     if (success) {
       this.log.info(`✅ Volume slider set successfully to ${volume}% for ${this.name}`);
-      
+
       // If setting volume above 0 and TV is muted, automatically unmute
       if (volume > 0) {
         try {
@@ -167,7 +167,7 @@ export class VolumeSliderService extends BaseService {
             const component = this.multiServiceAccessory.components.find(c => c.componentId === this.componentId);
             const audioMuteData = component?.status?.audioMute as any;
             const muteValue = audioMuteData?.mute?.value;
-            
+
             if (muteValue === 'muted') {
               this.log.debug(`Auto-unmuting ${this.name} because volume was set to ${volume}%`);
               await this.multiServiceAccessory.sendCommand(this.componentId, 'audioMute', 'unmute');
@@ -208,7 +208,7 @@ export class VolumeSliderService extends BaseService {
    */
   public processEvent(event: ShortEvent): void {
     this.log.debug(`Volume slider received event for ${this.name}: ${event.capability}.${event.attribute} = ${event.value}`);
-    
+
     try {
       if (event.capability === 'audioMute' && event.attribute === 'mute') {
         const isNotMuted = event.value !== 'muted';
@@ -232,7 +232,7 @@ export class VolumeSliderService extends BaseService {
     try {
       // Get current status from the device components
       const component = this.multiServiceAccessory.components.find(c => c.componentId === this.componentId);
-      
+
       if (component?.status) {
         // Update mute state if available
         const audioMuteData = component.status.audioMute as any;

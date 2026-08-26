@@ -55,8 +55,8 @@ export class SmartThingsSubscriptionManager {
         const status = error?.response?.status;
         if (status === 403) {
           this.log.error(
-            `Cannot create subscriptions - insufficient permissions (403). ` +
-            `Ensure the SmartApp has the correct scopes. Aborting remaining subscriptions.`,
+            'Cannot create subscriptions - insufficient permissions (403). ' +
+            'Ensure the SmartApp has the correct scopes. Aborting remaining subscriptions.',
           );
           break;
         }
@@ -111,7 +111,7 @@ export class SmartThingsSubscriptionManager {
     if (sorted.length > MAX_SUBSCRIPTIONS) {
       log.info(
         `${sorted.length} unique capabilities found across devices, but subscription limit is ${MAX_SUBSCRIPTIONS}. ` +
-        `Prioritizing by device count.`,
+        'Prioritizing by device count.',
       );
       const subscribed = sorted.slice(0, MAX_SUBSCRIPTIONS);
       const pollingOnly = sorted.slice(MAX_SUBSCRIPTIONS);

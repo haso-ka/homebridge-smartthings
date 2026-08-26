@@ -1,6 +1,7 @@
 import { PlatformAccessory, Characteristic, CharacteristicValue, Service, WithUUID, Logger, API } from 'homebridge';
 import axios = require('axios');
 import { IKHomeBridgeHomebridgePlatform } from './platform';
+declare const require: any;
 import { BaseService } from './services/baseService';
 // import { BasePlatformAccessory } from './basePlatformAccessory';
 import { MotionService } from './services/motionService';
@@ -588,6 +589,39 @@ export class MultiServiceAccessory {
 
             // Notify TelevisionService about global status update for input source monitoring
             this.notifyTelevisionServiceOfStatusUpdate();
+
+            // Notify Matter adapters about polled status changes (for Robot Vacuum RVC)
+            try {
+              // Avoid circular import at top-level - require at runtime
+              const { matterRegistry } = require('./matter');
+              for (const comp of this.components) {
+                const status = comp.status as Record<string, any>;
+                if (!status) {
+continue;
+}
+                for (const capId of Object.keys(status)) {
+                  const capAttrs = status[capId];
+                  if (!capAttrs || typeof capAttrs !== 'object') {
+continue;
+}
+                  for (const attr of Object.keys(capAttrs)) {
+                    const attrObj: any = (capAttrs as any)[attr];
+                    if (attrObj && typeof attrObj === 'object' && 'value' in attrObj) {
+                      const event = {
+                        deviceId: this.accessory.context.device.deviceId,
+                        componentId: comp.componentId,
+                        capability: capId,
+                        attribute: attr,
+                        value: attrObj.value,
+                      };
+                      matterRegistry.processEvent(this.accessory.context.device.deviceId, event);
+                    }
+                  }
+                }
+              }
+            } catch (e) {
+              this.log.debug(`Matter poll notify failed: ${e}`);
+            }
 
             this.hasInitialStatus = true;
             this.statusQueryInProgress = false;
