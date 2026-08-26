@@ -540,10 +540,24 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       return false;
     }
 
+    // Matter spec: ChangeToMode with CLEANING tag mode should start cleaning
+    // First change the movement mode
     const success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerMovement', 'setRobotCleanerMovement', [smartThingsMode]);
+    
     if (success) {
       this.currentRunMode = mode;
       this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.RvcRunMode, { currentMode: mode });
+      
+      // Matter spec: ChangeToMode with CLEANING tag should start cleaning
+      // Send start command to actually begin cleaning
+      const startSuccess = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerOperatingState', 'start');
+      if (startSuccess) {
+        this.log.info(`[RobotVacuumAdapter] RunMode changeToMode -> started cleaning via start command`);
+        this.currentOperationalState = MatterRvcOperationalState.OperationalState.RUNNING;
+        this.pushOperationalState();
+      } else {
+        this.log.warn(`[RobotVacuumAdapter] RunMode changed but failed to start cleaning`);
+      }
     }
     return success;
   }
