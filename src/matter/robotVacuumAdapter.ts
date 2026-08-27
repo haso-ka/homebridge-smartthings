@@ -320,20 +320,18 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
   }
 
   private buildCleanModeSupportedModes(): any[] {
-    return [
-      { mode: MatterRvcCleanMode.SupportedModes.AUTO, label: 'Vacuum', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
+    const modes: any[] = [
+      { mode: MatterRvcCleanMode.SupportedModes.AUTO, label: 'Auto', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
       { mode: MatterRvcCleanMode.SupportedModes.SPOT, label: 'Spot', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
       { mode: MatterRvcCleanMode.SupportedModes.ZONE, label: 'Area', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
       { mode: MatterRvcCleanMode.SupportedModes.SELECTIVE_ROOM, label: 'Object', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
-      { mode: MatterRvcCleanMode.SupportedModes.MAP, label: 'Map', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
-      { mode: MatterRvcCleanMode.SupportedModes.MANUAL, label: 'Manual', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
-      { mode: MatterRvcCleanMode.SupportedModes.THOROUGH, label: 'Pet', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
       { mode: MatterRvcCleanMode.SupportedModes.QUICK, label: 'Pattern Map', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
       { mode: MatterRvcCleanMode.SupportedModes.EDGE, label: 'Uncleaned Object', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
-      { mode: MatterRvcCleanMode.SupportedModes.TURBO, label: 'Turbo', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
-      { mode: MatterRvcCleanMode.SupportedModes.QUIET, label: 'Quiet', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
-      { mode: MatterRvcCleanMode.SupportedModes.DEEP, label: 'Vacuum and Mop', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }, { value: MatterRvcCleanMode.ModeTag.VACUUM_THEN_MOP }] },
     ];
+    if (this.supportedCleaningModes.includes('map')) {
+      modes.push({ mode: MatterRvcCleanMode.SupportedModes.MAP, label: 'Map', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] });
+    }
+    return modes;
   }
 
   private buildServiceAreaCluster(): any | null {
@@ -525,10 +523,16 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
         if (success) {
           this.currentOperationalState = MatterRvcOperationalState.OperationalState.RUNNING;
           // Apply stored clean mode when starting cleaning
-          const stMode = this.mapMatterCleanModeToSmartThings(this.currentCleanMode);
-          if (stMode && stMode !== 'auto') {
-            this.log.info(`[RobotVacuumAdapter] Applying stored clean mode ${this.currentCleanMode} (${stMode}) on start`);
-            await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningMode', 'setCleaningMode', [stMode]);
+          const stCleanMode = this.mapMatterCleanModeToSmartThings(this.currentCleanMode);
+          if (stCleanMode && stCleanMode !== 'auto') {
+            this.log.info(`[RobotVacuumAdapter] Applying stored clean mode ${this.currentCleanMode} (${stCleanMode}) on start`);
+            await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningMode', 'setCleaningMode', [stCleanMode]);
+          }
+          // Apply stored run mode (cleaning type) when starting cleaning
+          const stRunMode = this.mapMatterRunModeToSmartThings(this.currentRunMode);
+          if (stRunMode && this.currentRunMode !== MatterRvcRunMode.SupportedModes.IDLE) {
+            this.log.info(`[RobotVacuumAdapter] Applying stored run mode ${this.currentRunMode} (${stRunMode}) on start`);
+            await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningType', 'setCleaningType', [stRunMode]);
           }
         }
         break;
@@ -606,39 +610,6 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
 
     const isRunning = this.currentOperationalState === MatterRvcOperationalState.OperationalState.RUNNING
       || this.currentOperationalState === MatterRvcOperationalState.OperationalState.PAUSED;
-
-    // Map Matter CleanMode -> SmartThings
-    // Special Turbo/Quiet handling via turboMode capability
-    if (mode === MatterRvcCleanMode.SupportedModes.TURBO) {
-      if (isRunning) {
-        const ok = await this.sendSmartThingsCommand('main', 'robotCleanerTurboMode', 'setRobotCleanerTurboMode', ['on']);
-        if (ok) {
-          this.currentCleanMode = mode;
-          this.matterApi?.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.RvcCleanMode, { currentMode: mode });
-        }
-        return ok;
-      } else {
-        this.currentCleanMode = mode;
-        this.matterApi?.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.RvcCleanMode, { currentMode: mode });
-        this.log.info(`[RobotVacuumAdapter] Robot not running, stored clean mode ${mode} locally (will apply on next start)`);
-        return true;
-      }
-    }
-    if (mode === MatterRvcCleanMode.SupportedModes.QUIET) {
-      if (isRunning) {
-        const ok = await this.sendSmartThingsCommand('main', 'robotCleanerTurboMode', 'setRobotCleanerTurboMode', ['silence']);
-        if (ok) {
-          this.currentCleanMode = mode;
-          this.matterApi?.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.RvcCleanMode, { currentMode: mode });
-        }
-        return ok;
-      } else {
-        this.currentCleanMode = mode;
-        this.matterApi?.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.RvcCleanMode, { currentMode: mode });
-        this.log.info(`[RobotVacuumAdapter] Robot not running, stored clean mode ${mode} locally (will apply on next start)`);
-        return true;
-      }
-    }
 
     const stMode = this.mapMatterCleanModeToSmartThings(mode);
     if (!stMode) {
@@ -892,19 +863,8 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     if (attribute !== 'robotCleanerTurboMode') {
       return;
     }
-    const mode = value as string;
-    let newMode: number | undefined;
-    if (mode === 'on') {
-      newMode = MatterRvcCleanMode.CurrentMode.TURBO;
-    } else if (mode === 'off') {
-      newMode = MatterRvcCleanMode.CurrentMode.AUTO;
-    } else if (mode === 'silence' || mode === 'extraSilence') {
-      newMode = MatterRvcCleanMode.CurrentMode.QUIET;
-    }
-    if (newMode !== undefined && newMode !== this.currentCleanMode) {
-      this.currentCleanMode = newMode;
-      this.matterApi?.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.RvcCleanMode, { currentMode: newMode });
-    }
+    // Turbo mode is not exposed in Matter CleanMode (handled separately if needed)
+    this.log.debug(`[RobotVacuumAdapter] TurboMode updated: ${value}`);
   }
 
   private handleMovementEvent(attribute: string, value: unknown): void {
@@ -1078,13 +1038,8 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       [MatterRvcCleanMode.SupportedModes.ZONE]: 'area',
       [MatterRvcCleanMode.SupportedModes.SELECTIVE_ROOM]: 'object',
       [MatterRvcCleanMode.SupportedModes.MAP]: 'map',
-      [MatterRvcCleanMode.SupportedModes.MANUAL]: 'manual',
-      [MatterRvcCleanMode.SupportedModes.THOROUGH]: 'pet',
       [MatterRvcCleanMode.SupportedModes.QUICK]: 'patternMap',
       [MatterRvcCleanMode.SupportedModes.EDGE]: 'uncleanedObject',
-      [MatterRvcCleanMode.SupportedModes.TURBO]: 'auto', // handled separately via turboMode
-      [MatterRvcCleanMode.SupportedModes.QUIET]: 'auto',
-      [MatterRvcCleanMode.SupportedModes.DEEP]: 'auto',
     };
     return map[mode] || null;
   }
@@ -1108,11 +1063,8 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
   }
 
   private mapSamsungCleaningTypeToCleanMode(type: string): number | undefined {
-    const c = MatterRvcCleanMode.CurrentMode;
-    const map: Record<string, number> = {
-      vacuum: c.AUTO, mop: c.AUTO, vacuumAndMopTogether: c.DEEP, mopAfterVacuum: c.DEEP,
-    };
-    return map[type];
+    // cleaningType maps to RunMode, not CleanMode
+    return undefined;
   }
 
   getInitialState(): NormalizedMatterState {
@@ -1186,7 +1138,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       this.currentWaterSprayLevel = waterStatus.waterSprayLevel.value;
     }
 
-    // CleanMode: samsung cleaningMode > standard > turbo > cleaningType
+    // CleanMode: samsung cleaningMode > standard
     if (sCleanModeStatus?.cleaningMode?.value) {
       const mapped = this.mapSamsungCleaningModeToMatter(sCleanModeStatus.cleaningMode.value);
       if (mapped !== undefined) {
@@ -1196,14 +1148,6 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       const mapped = this.mapStandardCleaningModeToMatter(stdCleanModeStatus.robotCleanerCleaningMode.value);
       if (mapped !== undefined) {
         this.currentCleanMode = mapped;
-      }
-    }
-    if (turboStatus?.robotCleanerTurboMode?.value) {
-      const turbo = turboStatus.robotCleanerTurboMode.value;
-      if (turbo === 'on') {
-        this.currentCleanMode = MatterRvcCleanMode.CurrentMode.TURBO;
-      } else if (turbo === 'silence' || turbo === 'extraSilence') {
-        this.currentCleanMode = MatterRvcCleanMode.CurrentMode.QUIET;
       }
     }
     // CleaningType also influences CleanMode tags but not primary
