@@ -238,7 +238,12 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
           },
           rvcRunMode: {
             currentMode: this.currentRunMode,
-            supportedModes: this.buildRunModeSupportedModes(),
+            supportedModes: supportedModes: [
+              { mode: MatterRvcRunMode.SupportedModes.IDLE, label: 'Idle', modeTags: [{ value: MatterRvcRunMode.ModeTag.IDLE }] },
+              { mode: MatterRvcRunMode.SupportedModes.VACUUM_AND_MOP, label: 'Vacuum and Mop', modeTags: [{ value: MatterRvcRunMode.ModeTag.CLEANING }] },
+              { mode: MatterRvcRunMode.SupportedModes.VACUUM, label: 'Vacuum', modeTags: [{ value: MatterRvcRunMode.ModeTag.CLEANING }] },
+              { mode: MatterRvcRunMode.SupportedModes.MOP, label: 'Mop', modeTags: [{ value: MatterRvcRunMode.ModeTag.CLEANING }] },
+            ],
           },
           rvcCleanMode: {
             currentMode: this.currentCleanMode,
