@@ -592,21 +592,35 @@ export class MultiServiceAccessory {
 
             // Notify Matter adapters about polled status changes (for Robot Vacuum RVC)
             try {
-              // Avoid circular import at top-level - require at runtime
               const { matterRegistry } = require('./matter');
               for (const comp of this.components) {
+                if (comp.componentId !== 'main') {
+                  continue;
+                }
                 const status = comp.status as Record<string, any>;
                 if (!status) {
-continue;
-}
+                  continue;
+                }
                 for (const capId of Object.keys(status)) {
+                  if (
+                    !capId.startsWith('samsungce.robotCleaner') &&
+                    capId !== 'robotCleanerMovement' &&
+                    capId !== 'robotCleanerTurboMode' &&
+                    capId !== 'battery' &&
+                    capId !== 'switch'
+                  ) {
+                    continue;
+                  }
                   const capAttrs = status[capId];
                   if (!capAttrs || typeof capAttrs !== 'object') {
-continue;
-}
+                    continue;
+                  }
                   for (const attr of Object.keys(capAttrs)) {
                     const attrObj: any = (capAttrs as any)[attr];
                     if (attrObj && typeof attrObj === 'object' && 'value' in attrObj) {
+                      if (attrObj.value === null) {
+                        continue;
+                      }
                       const event = {
                         deviceId: this.accessory.context.device.deviceId,
                         componentId: comp.componentId,

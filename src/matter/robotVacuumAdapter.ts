@@ -416,7 +416,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
           }
         }
       }
-      this.log.info(`[RobotVacuumAdapter] ServiceArea supportedAreas: ${supportedAreas.length} areas from ${targetMaps.length} maps (selected from ${maps.length} total)`);
+      this.log.debug(`[RobotVacuumAdapter] ServiceArea supportedAreas: ${supportedAreas.length} areas from ${targetMaps.length} maps (selected from ${maps.length} total)`);
       return {
         supportedMaps,
         supportedAreas,
@@ -779,7 +779,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     const capability = event.capability as string;
     const attribute = event.attribute;
     const value = event.value;
-    this.log.info(`[RobotVacuumAdapter] Event: ${capability}.${attribute} = ${JSON.stringify(value)}`);
+    this.log.debug(`[RobotVacuumAdapter] Event: ${capability}.${attribute} = ${JSON.stringify(value)}`);
     switch (capability) {
       case 'samsungce.robotCleanerOperatingState': this.handleOperatingStateEvent(attribute, value); break;
       case 'samsungce.robotCleanerCleaningMode': this.handleSamsungCleaningModeEvent(attribute, value); break;
@@ -798,10 +798,10 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
   }
 
   private handleOperatingStateEvent(attribute: string, value: unknown): void {
-    this.log.info(`[RobotVacuumAdapter] OperatingState attr ${attribute}=${JSON.stringify(value)}`);
+    this.log.debug(`[RobotVacuumAdapter] OperatingState attr ${attribute}=${JSON.stringify(value)}`);
     if (attribute === 'supportedOperatingState') {
       this.supportedOperatingStates = value as string[];
-      this.log.info(`[RobotVacuumAdapter] Supported operating states: ${this.supportedOperatingStates.join(',')}`);
+      this.log.debug(`[RobotVacuumAdapter] Supported operating states: ${this.supportedOperatingStates.join(',')}`);
       return;
     }
     if (attribute !== 'operatingState') {
@@ -828,10 +828,10 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
   }
 
   private handleSamsungCleaningModeEvent(attribute: string, value: unknown): void {
-    this.log.info(`[RobotVacuumAdapter] SamsungCleaningMode attr ${attribute}=${JSON.stringify(value)}`);
+    this.log.debug(`[RobotVacuumAdapter] SamsungCleaningMode attr ${attribute}=${JSON.stringify(value)}`);
     if (attribute === 'supportedCleaningMode') {
       this.supportedCleaningModes = value as string[];
-      this.log.info(`[RobotVacuumAdapter] Supported cleaning modes: ${this.supportedCleaningModes.join(',')}`);
+      this.log.debug(`[RobotVacuumAdapter] Supported cleaning modes: ${this.supportedCleaningModes.join(',')}`);
       return;
     }
     if (attribute !== 'cleaningMode') {
@@ -877,7 +877,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
   }
 
   private handleMovementEvent(attribute: string, value: unknown): void {
-    this.log.info(`[RobotVacuumAdapter] Movement attr ${attribute}=${JSON.stringify(value)}`);
+    this.log.debug(`[RobotVacuumAdapter] Movement attr ${attribute}=${JSON.stringify(value)}`);
     if (attribute !== 'robotCleanerMovement') {
       return;
     }
@@ -891,10 +891,10 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
   }
 
   private handleCleaningTypeEvent(attribute: string, value: unknown): void {
-    this.log.info(`[RobotVacuumAdapter] CleaningType attr ${attribute}=${JSON.stringify(value)}`);
+    this.log.debug(`[RobotVacuumAdapter] CleaningType attr ${attribute}=${JSON.stringify(value)}`);
     if (attribute === 'supportedCleaningTypes' || attribute === 'availableCleaningTypes') {
       this.supportedCleaningTypes = value as string[];
-      this.log.info(`[RobotVacuumAdapter] Supported cleaning types: ${this.supportedCleaningTypes.join(',')}`);
+      this.log.debug(`[RobotVacuumAdapter] Supported cleaning types: ${this.supportedCleaningTypes.join(',')}`);
       return;
     }
     if (attribute !== 'cleaningType') {
@@ -906,7 +906,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       const isRunning = this.currentOperationalState === MatterRvcOperationalState.OperationalState.RUNNING
         || this.currentOperationalState === MatterRvcOperationalState.OperationalState.PAUSED;
       if (!isRunning) {
-        this.log.info(`[RobotVacuumAdapter] CleaningType ${type} stored but RunMode stays Idle (not running)`);
+        this.log.debug(`[RobotVacuumAdapter] CleaningType ${type} stored but RunMode stays Idle (not running)`);
         return;
       }
       this.currentRunMode = runMode;
@@ -915,7 +915,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
   }
 
   private handleDrivingModeEvent(attribute: string, value: unknown): void {
-    this.log.info(`[RobotVacuumAdapter] DrivingMode attr ${attribute}=${JSON.stringify(value)}`);
+    this.log.debug(`[RobotVacuumAdapter] DrivingMode attr ${attribute}=${JSON.stringify(value)}`);
     if (attribute === 'supportedDrivingModes') {
       this.supportedDrivingModes = value as string[];
       return;
@@ -926,11 +926,11 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     const mode = value as string;
     this.currentDrivingMode = mode;
     // DrivingMode not directly mapped to Matter, but could affect CleanMode label
-    this.log.info(`[RobotVacuumAdapter] DrivingMode updated to ${mode}`);
+    this.log.debug(`[RobotVacuumAdapter] DrivingMode updated to ${mode}`);
   }
 
   private handleWaterSprayEvent(attribute: string, value: unknown): void {
-    this.log.info(`[RobotVacuumAdapter] WaterSpray attr ${attribute}=${JSON.stringify(value)}`);
+    this.log.debug(`[RobotVacuumAdapter] WaterSpray attr ${attribute}=${JSON.stringify(value)}`);
     if (attribute === 'supportedWaterSprayLevels' || attribute === 'availableWaterSprayLevels') {
       this.supportedWaterLevels = value as string[];
       return;
@@ -939,7 +939,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       return;
     }
     this.currentWaterSprayLevel = value as string;
-    this.log.info(`[RobotVacuumAdapter] WaterSprayLevel updated to ${this.currentWaterSprayLevel}`);
+    this.log.debug(`[RobotVacuumAdapter] WaterSprayLevel updated to ${this.currentWaterSprayLevel}`);
   }
 
   private handleBatteryEvent(attribute: string, value: unknown): void {
@@ -958,7 +958,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
   }
 
   private handleMapListEvent(attribute: string, value: unknown): void {
-    this.log.info(`[RobotVacuumAdapter] MapList attr ${attribute}=${JSON.stringify(value).substring(0, 500)}`);
+    this.log.debug(`[RobotVacuumAdapter] MapList attr ${attribute}=${JSON.stringify(value).substring(0, 500)}`);
     // Rebuild ServiceArea when maps change
     const serviceArea = this.buildServiceAreaCluster();
     if (serviceArea) {
@@ -967,7 +967,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
   }
 
   private handleAudioNotificationEvent(attribute: string, value: unknown): void {
-    this.log.info(`[RobotVacuumAdapter] AudioNotification attr ${attribute}=${JSON.stringify(value)}`);
+    this.log.debug(`[RobotVacuumAdapter] AudioNotification attr ${attribute}=${JSON.stringify(value)}`);
   }
 
   private batteryLevelToMatterEnum(level: number): number {
@@ -1085,9 +1085,9 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
   }
 
   getInitialState(): NormalizedMatterState {
-    this.log.info(`[RobotVacuumAdapter] getInitialState fetching from ${this.multiServiceAccessory.components.length} components`);
+    this.log.debug(`[RobotVacuumAdapter] getInitialState fetching from ${this.multiServiceAccessory.components.length} components`);
     const mainStatus = this.getMainStatus();
-    this.log.info(`[RobotVacuumAdapter] FULL main status keys: ${Object.keys(mainStatus).join(',')}`);
+    this.log.debug(`[RobotVacuumAdapter] FULL main status keys: ${Object.keys(mainStatus).join(',')}`);
 
     // Extract each capability
     const opStateStatus: any = this.getCapabilityStatus('samsungce.robotCleanerOperatingState');
@@ -1102,31 +1102,31 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     const switchStatus: any = this.getCapabilityStatus('switch');
     const mapListStatus: any = this.getCapabilityStatus('samsungce.robotCleanerMapList');
 
-    this.log.info(`[RobotVacuumAdapter] opState=${JSON.stringify(opStateStatus?.operatingState)} cleaningType=${JSON.stringify(cleaningTypeStatus?.cleaningType)} sCleanMode=${JSON.stringify(sCleanModeStatus?.cleaningMode)} movement=${JSON.stringify(movementStatus?.robotCleanerMovement)} turbo=${JSON.stringify(turboStatus?.robotCleanerTurboMode)} driving=${JSON.stringify(drivingStatus?.drivingMode)} water=${JSON.stringify(waterStatus?.waterSprayLevel)} battery=${JSON.stringify(batteryStatus?.battery)} switch=${JSON.stringify(switchStatus?.switch)}`);
+    this.log.debug(`[RobotVacuumAdapter] opState=${JSON.stringify(opStateStatus?.operatingState)} cleaningType=${JSON.stringify(cleaningTypeStatus?.cleaningType)} sCleanMode=${JSON.stringify(sCleanModeStatus?.cleaningMode)} movement=${JSON.stringify(movementStatus?.robotCleanerMovement)} turbo=${JSON.stringify(turboStatus?.robotCleanerTurboMode)} driving=${JSON.stringify(drivingStatus?.drivingMode)} water=${JSON.stringify(waterStatus?.waterSprayLevel)} battery=${JSON.stringify(batteryStatus?.battery)} switch=${JSON.stringify(switchStatus?.switch)}`);
 
     // Capture supported values
     if (opStateStatus?.supportedOperatingState?.value) {
       this.supportedOperatingStates = opStateStatus.supportedOperatingState.value;
-      this.log.info(`[RobotVacuumAdapter] supportedOperatingStates: ${this.supportedOperatingStates.length}`);
+      this.log.debug(`[RobotVacuumAdapter] supportedOperatingStates: ${this.supportedOperatingStates.length}`);
     }
     if (sCleanModeStatus?.supportedCleaningMode?.value) {
       this.supportedCleaningModes = sCleanModeStatus.supportedCleaningMode.value;
-      this.log.info(`[RobotVacuumAdapter] supportedCleaningModes: ${this.supportedCleaningModes.join(',')}`);
+      this.log.debug(`[RobotVacuumAdapter] supportedCleaningModes: ${this.supportedCleaningModes.join(',')}`);
     }
     if (cleaningTypeStatus?.supportedCleaningTypes?.value) {
       this.supportedCleaningTypes = cleaningTypeStatus.supportedCleaningTypes.value;
-      this.log.info(`[RobotVacuumAdapter] supportedCleaningTypes: ${this.supportedCleaningTypes.join(',')}`);
+      this.log.debug(`[RobotVacuumAdapter] supportedCleaningTypes: ${this.supportedCleaningTypes.join(',')}`);
     }
     if (drivingStatus?.supportedDrivingModes?.value) {
       this.supportedDrivingModes = drivingStatus.supportedDrivingModes.value;
-      this.log.info(`[RobotVacuumAdapter] supportedDrivingModes: ${this.supportedDrivingModes.join(',')}`);
+      this.log.debug(`[RobotVacuumAdapter] supportedDrivingModes: ${this.supportedDrivingModes.join(',')}`);
     }
     if (waterStatus?.supportedWaterSprayLevels?.value) {
       this.supportedWaterLevels = waterStatus.supportedWaterSprayLevels.value;
-      this.log.info(`[RobotVacuumAdapter] supportedWaterLevels: ${this.supportedWaterLevels.join(',')}`);
+      this.log.debug(`[RobotVacuumAdapter] supportedWaterLevels: ${this.supportedWaterLevels.join(',')}`);
     }
     if (mapListStatus?.maps?.value) {
-      this.log.info(`[RobotVacuumAdapter] maps: ${mapListStatus.maps.value.length} maps`);
+      this.log.debug(`[RobotVacuumAdapter] maps: ${mapListStatus.maps.value.length} maps`);
     }
 
     // Determine operational state - priority: samsungce operatingState > movement
@@ -1187,7 +1187,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
           // Remember type but keep Idle visible
           if (this.currentRunMode === MatterRvcRunMode.CurrentMode.IDLE) {
             // keep Idle, but store type for next start (don't overwrite Idle)
-            this.log.info(`[RobotVacuumAdapter] CleaningType ${cleaningTypeStatus.cleaningType.value} -> RunMode ${runMapped} but currently idle, keeping Idle`);
+            this.log.debug(`[RobotVacuumAdapter] CleaningType ${cleaningTypeStatus.cleaningType.value} -> RunMode ${runMapped} but currently idle, keeping Idle`);
           } else {
             this.currentRunMode = runMapped;
           }
@@ -1212,7 +1212,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     }
     this.currentCharging = this.currentOperationalState === MatterRvcOperationalState.OperationalState.CHARGING;
 
-    this.log.info(`[RobotVacuumAdapter] getInitialState -> OpState=${this.currentOperationalState} RunMode=${this.currentRunMode} CleanMode=${this.currentCleanMode} Battery=${this.currentBatteryLevel} PowerOn=${this.currentPowerOn} Charging=${this.currentCharging}`);
+    this.log.debug(`[RobotVacuumAdapter] getInitialState -> OpState=${this.currentOperationalState} RunMode=${this.currentRunMode} CleanMode=${this.currentCleanMode} Battery=${this.currentBatteryLevel} PowerOn=${this.currentPowerOn} Charging=${this.currentCharging}`);
 
     return {
       [MatterClusterNames.OnOff]: { onOff: this.currentPowerOn },
