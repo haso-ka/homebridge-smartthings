@@ -111,10 +111,38 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
   private supportedDrivingModes: string[] = [];
   private supportedWaterLevels: string[] = [];
   private supportedOperatingStates: string[] = [];
+  private pollingInterval: NodeJS.Timeout | null = null;
 
   constructor(platform: API, log: Logger, multiServiceAccessory: MultiServiceAccessory) {
     super(platform, log, multiServiceAccessory);
     this.matterApi = (platform as any).matter || null;
+  }
+
+  private startPolling(): void {
+    if (this.pollingInterval) {
+      return;
+    }
+    const platform: any = (this.multiServiceAccessory as any).platform;
+    const intervalSec = platform?.config?.matterPollingInterval;
+    const intervalMs = (typeof intervalSec === 'number' ? intervalSec : 10) * 1000;
+    if (intervalMs === 0) {
+      this.log.info('[RobotVacuumAdapter] Polling disabled (matterPollingInterval=0)');
+      return;
+    }
+    this.pollingInterval = setInterval(async () => {
+      try {
+        await this.multiServiceAccessory.refreshStatus();
+      } catch (e) {
+        this.log.debug(`[RobotVacuumAdapter] Polling refresh failed: ${e}`);
+      }
+    }, intervalMs);
+  }
+
+  private stopPolling(): void {
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval);
+      this.pollingInterval = null;
+    }
   }
 
   // Helper: get capability status from any component
@@ -150,6 +178,14 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       this.log.info(`[RobotVacuumAdapter] Refreshed initial state for Matter: RunMode=${this.currentRunMode} OpState=${this.currentOperationalState} CleanMode=${this.currentCleanMode}`);
     } catch (e) {
       this.log.warn(`[RobotVacuumAdapter] Initial refreshStatus failed: ${e}`);
+    }
+
+    const platform: any = (this.multiServiceAccessory as any).platform;
+    const serverUrl = platform?.config?.server_url;
+    const hasWebhook = typeof serverUrl === 'string' && serverUrl.trim() !== '';
+    if (!hasWebhook) {
+      this.startPolling();
+      this.log.info('[RobotVacuumAdapter] Webhook not configured, polling enabled for state updates');
     }
 
     this.log.info(`[RobotVacuumAdapter] setupMatterAccessory: RunMode=${this.currentRunMode} OpState=${this.currentOperationalState} CleanMode=${this.currentCleanMode}`);

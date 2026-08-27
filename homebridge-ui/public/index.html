@@ -34,6 +34,36 @@
         </div>
     </div>
 
+    <div id="matter-settings" style="display:none" class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center" style="cursor:pointer" onclick="toggleMatterCard()">
+            <strong>Matter</strong>
+            <span id="matter-status" class="badge badge-primary">Matter</span>
+        </div>
+        <div id="matter-body" class="card-body" style="display:none">
+            <p class="text-muted small">
+                Expose Matter-only devices (e.g., robot vacuums) via the Homebridge Matter bridge. When disabled, they fall back to HomeKit as generic accessories (e.g., Switch) if supported. Requires Homebridge v1.8+ with Matter enabled.
+            </p>
+            <div class="form-group row">
+                <label class="col-sm-4 col-form-label font-weight-bold">Enable Matter</label>
+                <div class="col-sm-8">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="matter-enable">
+                        <label class="form-check-label" for="matter-enable">Expose Matter-only devices (e.g., robot vacuums)</label>
+                    </div>
+                </div>
+            </div>
+            <div class="form-group row">
+                <label for="matter-polling-interval" class="col-sm-4 col-form-label font-weight-bold">Polling Interval (seconds)</label>
+                <div class="col-sm-8">
+                    <input type="number" class="form-control form-control-sm" id="matter-polling-interval" min="0" max="300" placeholder="10">
+                    <small class="form-text text-muted">Only used when Server URL is empty (webhook not configured). Set to 0 to disable polling. Default: 10.</small>
+                </div>
+            </div>
+            <button class="btn btn-success" onclick="matterSave()">Save Matter Settings</button>
+            <div id="matter-result" class="mt-3" style="display:none"></div>
+        </div>
+    </div>
+
     <div id="frame-tv-settings" style="display:none" class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center" style="cursor:pointer" onclick="toggleFrameTvCard()">
             <strong>Samsung Frame &amp; Tizen TV Control</strong>
@@ -272,16 +302,19 @@
                 hideWizard();
             }
 
-            // Show capability selector and Frame TV settings if plugin is configured
+            // Show capability selector, Matter and Frame TV settings if plugin is configured
             if (pluginConfig[0].client_id) {
                 document.getElementById('cap-selector').style.display = 'block';
                 initCapabilitySelector();
+                document.getElementById('matter-settings').style.display = 'block';
+                initMatterSettings();
                 document.getElementById('frame-tv-settings').style.display = 'block';
                 initFrameTvSettings();
                 document.getElementById('tv-apps-settings').style.display = 'block';
                 initTvAppsSettings();
             } else {
                 document.getElementById('cap-selector').style.display = 'none';
+                document.getElementById('matter-settings').style.display = 'none';
                 document.getElementById('frame-tv-settings').style.display = 'none';
                 document.getElementById('tv-apps-settings').style.display = 'none';
             }
@@ -836,6 +869,43 @@
     function toggleTvAppsCard() {
         var body = document.getElementById('tv-apps-body');
         body.style.display = body.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function toggleMatterCard() {
+        const body = document.getElementById('matter-body');
+        body.style.display = body.style.display === 'none' ? 'block' : 'none';
+    }
+
+    async function initMatterSettings() {
+        try {
+            const pluginConfig = await homebridge.getPluginConfig();
+            const enabled = pluginConfig[0].enableMatter !== false;
+            const interval = pluginConfig[0].matterPollingInterval;
+            document.getElementById('matter-enable').checked = enabled;
+            document.getElementById('matter-polling-interval').value = interval !== undefined ? interval : 10;
+        } catch (err) {
+            console.error('initMatterSettings error:', err);
+        }
+    }
+
+    async function matterSave() {
+        const resultDiv = document.getElementById('matter-result');
+        try {
+            const pluginConfig = await homebridge.getPluginConfig();
+            pluginConfig[0].enableMatter = document.getElementById('matter-enable').checked;
+            const intervalVal = parseInt(document.getElementById('matter-polling-interval').value, 10);
+            pluginConfig[0].matterPollingInterval = isNaN(intervalVal) ? 10 : Math.max(0, Math.min(300, intervalVal));
+            await homebridge.updatePluginConfig(pluginConfig);
+            await homebridge.savePluginConfig();
+            resultDiv.className = 'mt-3 alert alert-success';
+            resultDiv.textContent = 'Matter settings saved! Restart Homebridge to apply changes.';
+            resultDiv.style.display = 'block';
+        } catch (err) {
+            console.error('matterSave error:', err);
+            resultDiv.className = 'mt-3 alert alert-danger';
+            resultDiv.textContent = 'Error saving: ' + (err.message || err);
+            resultDiv.style.display = 'block';
+        }
     }
 
     async function initTvAppsSettings() {

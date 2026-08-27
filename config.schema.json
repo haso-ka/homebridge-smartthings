@@ -37,6 +37,20 @@
         "required": false,
         "description": "Only required if you want to use webhooks for real-time device updates. Leave empty if you only want polling."
       },
+      "enableMatter": {
+        "title": "Enable Matter",
+        "type": "boolean",
+        "default": true,
+        "description": "Expose Matter-only devices (e.g., robot vacuums) via the Homebridge Matter bridge. When disabled, they fall back to HomeKit as generic accessories (e.g., Switch) if supported. Requires Homebridge v1.8+ with Matter enabled."
+      },
+      "matterPollingInterval": {
+        "title": "Matter Polling Interval (seconds)",
+        "type": "integer",
+        "default": 10,
+        "minimum": 0,
+        "maximum": 300,
+        "description": "How often to poll SmartThings for Matter device state updates when webhook (Server URL) is not configured. Set to 0 to disable polling. Only used when Server URL is empty. Default: 10 seconds."
+      },
       "oauth_access_token": {
         "title": "OAuth Access Token",
         "type": "string",
