@@ -238,12 +238,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
           },
           rvcRunMode: {
             currentMode: this.currentRunMode,
-            supportedModes: [
-              { mode: MatterRvcRunMode.SupportedModes.IDLE, label: 'Idle', modeTags: [{ value: MatterRvcRunMode.ModeTag.IDLE }] },
-              { mode: MatterRvcRunMode.SupportedModes.VACUUM_AND_MOP, label: 'Vacuum and Mop', modeTags: [{ value: MatterRvcRunMode.ModeTag.CLEANING }] },
-              { mode: MatterRvcRunMode.SupportedModes.VACUUM, label: 'Vacuum', modeTags: [{ value: MatterRvcRunMode.ModeTag.CLEANING }] },
-              { mode: MatterRvcRunMode.SupportedModes.MOP, label: 'Mop', modeTags: [{ value: MatterRvcRunMode.ModeTag.CLEANING }] },
-            ],
+            supportedModes: this.buildRunModeSupportedModes(),
           },
           rvcCleanMode: {
             currentMode: this.currentCleanMode,
@@ -321,7 +316,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
 
   private buildCleanModeSupportedModes(): any[] {
     return [
-      { mode: MatterRvcCleanMode.SupportedModes.AUTO, label: 'Auto', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
+      { mode: MatterRvcCleanMode.SupportedModes.AUTO, label: 'Vacuum', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
       { mode: MatterRvcCleanMode.SupportedModes.SPOT, label: 'Spot', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
       { mode: MatterRvcCleanMode.SupportedModes.ZONE, label: 'Area', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
       { mode: MatterRvcCleanMode.SupportedModes.SELECTIVE_ROOM, label: 'Object', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
@@ -332,7 +327,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       { mode: MatterRvcCleanMode.SupportedModes.EDGE, label: 'Uncleaned Object', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
       { mode: MatterRvcCleanMode.SupportedModes.TURBO, label: 'Turbo', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
       { mode: MatterRvcCleanMode.SupportedModes.QUIET, label: 'Quiet', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }] },
-      { mode: MatterRvcCleanMode.SupportedModes.DEEP, label: 'Deep', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }, { value: MatterRvcCleanMode.ModeTag.VACUUM_THEN_MOP }] },
+      { mode: MatterRvcCleanMode.SupportedModes.DEEP, label: 'Vacuum and Mop', modeTags: [{ value: MatterRvcCleanMode.ModeTag.VACUUM }, { value: MatterRvcCleanMode.ModeTag.VACUUM_THEN_MOP }] },
     ];
   }
 
