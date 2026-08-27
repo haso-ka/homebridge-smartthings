@@ -524,6 +524,12 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
         }
         if (success) {
           this.currentOperationalState = MatterRvcOperationalState.OperationalState.RUNNING;
+          // Apply stored clean mode when starting cleaning
+          const stMode = this.mapMatterCleanModeToSmartThings(this.currentCleanMode);
+          if (stMode && stMode !== 'auto') {
+            this.log.info(`[RobotVacuumAdapter] Applying stored clean mode ${this.currentCleanMode} (${stMode}) on start`);
+            await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningMode', 'setCleaningMode', [stMode]);
+          }
         }
         break;
       }
@@ -598,21 +604,40 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     const mode = args[0] as number;
     this.log.info(`[RobotVacuumAdapter] handleCleanModeCommand mode=${mode}`);
 
+    const isRunning = this.currentOperationalState === MatterRvcOperationalState.OperationalState.RUNNING
+      || this.currentOperationalState === MatterRvcOperationalState.OperationalState.PAUSED;
+
     // Map Matter CleanMode -> SmartThings
     // Special Turbo/Quiet handling via turboMode capability
     if (mode === MatterRvcCleanMode.SupportedModes.TURBO) {
-      const ok = await this.sendSmartThingsCommand('main', 'robotCleanerTurboMode', 'setRobotCleanerTurboMode', ['on']);
-      if (ok) {
+      if (isRunning) {
+        const ok = await this.sendSmartThingsCommand('main', 'robotCleanerTurboMode', 'setRobotCleanerTurboMode', ['on']);
+        if (ok) {
+          this.currentCleanMode = mode;
+          this.matterApi?.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.RvcCleanMode, { currentMode: mode });
+        }
+        return ok;
+      } else {
         this.currentCleanMode = mode;
+        this.matterApi?.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.RvcCleanMode, { currentMode: mode });
+        this.log.info(`[RobotVacuumAdapter] Robot not running, stored clean mode ${mode} locally (will apply on next start)`);
+        return true;
       }
-      return ok;
     }
     if (mode === MatterRvcCleanMode.SupportedModes.QUIET) {
-      const ok = await this.sendSmartThingsCommand('main', 'robotCleanerTurboMode', 'setRobotCleanerTurboMode', ['silence']);
-      if (ok) {
+      if (isRunning) {
+        const ok = await this.sendSmartThingsCommand('main', 'robotCleanerTurboMode', 'setRobotCleanerTurboMode', ['silence']);
+        if (ok) {
+          this.currentCleanMode = mode;
+          this.matterApi?.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.RvcCleanMode, { currentMode: mode });
+        }
+        return ok;
+      } else {
         this.currentCleanMode = mode;
+        this.matterApi?.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.RvcCleanMode, { currentMode: mode });
+        this.log.info(`[RobotVacuumAdapter] Robot not running, stored clean mode ${mode} locally (will apply on next start)`);
+        return true;
       }
-      return ok;
     }
 
     const stMode = this.mapMatterCleanModeToSmartThings(mode);
@@ -624,12 +649,20 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     if (this.supportedCleaningModes.length > 0 && !this.supportedCleaningModes.includes(stMode)) {
       this.log.warn(`[RobotVacuumAdapter] Cleaning mode ${stMode} not in supported list ${this.supportedCleaningModes.join(',')} - trying anyway`);
     }
-    const success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningMode', 'setCleaningMode', [stMode]);
-    if (success) {
+
+    if (isRunning) {
+      const success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningMode', 'setCleaningMode', [stMode]);
+      if (success) {
+        this.currentCleanMode = mode;
+        this.matterApi?.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.RvcCleanMode, { currentMode: mode });
+      }
+      return success;
+    } else {
       this.currentCleanMode = mode;
       this.matterApi?.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.RvcCleanMode, { currentMode: mode });
+      this.log.info(`[RobotVacuumAdapter] Robot not running, stored clean mode ${mode} locally (will apply on next start)`);
+      return true;
     }
-    return success;
   }
 
   private async handleRunModeCommand(command: string, args?: unknown[]): Promise<boolean> {

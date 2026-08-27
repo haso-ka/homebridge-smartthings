@@ -772,11 +772,13 @@ export class MultiServiceAccessory {
 
   async sendCommand(componentId: string, capability: string, command: string, args?: unknown[]): Promise<boolean> {
     const cmd = new Command(componentId, capability, command, args);
+    this.log.info(`[sendCommand] ${this.name}: component=${componentId} capability=${capability} command=${command} args=${JSON.stringify(args)}`);
     return this.sendCommands([cmd]);
   }
 
   async sendCommands(commands: Command[]): Promise<boolean> {
     const commandBody = JSON.stringify({ commands: commands });
+    this.log.info(`[sendCommands] ${this.name}: ${commandBody}`);
     return new Promise((resolve) => {
       this.waitFor(() => !this.commandInProgress).then(() => {
         this.commandInProgress = true;
