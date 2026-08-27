@@ -740,9 +740,13 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
    */
   async createMatterAccessoryObject(device, accessory): Promise<MultiServiceAccessory> {
     const acc = new MultiServiceAccessory(this, accessory);
-    // Do NOT call addComponent - this prevents HAP services (Switch, etc.) from being created
-    // The Matter adapter will use acc.sendCommand() for SmartThings communication
-    // Events are handled via matterRegistry.processEvent() from webhook
+    for (const comp of device.components) {
+      acc.components.push({
+        componentId: comp.id,
+        capabilities: (comp.capabilities as any[]).map((c: any) => c.id),
+        status: {},
+      });
+    }
     return acc;
   }
 
