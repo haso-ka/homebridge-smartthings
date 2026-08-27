@@ -574,14 +574,6 @@ export class MultiServiceAccessory {
           this.lastStatusResult = true;
           this.axInstance.get(this.statusURL).then((res) => {
             const componentsStatus = res.data.components;
-            const oldComponentsStatus = new Map<string, Record<string, any>>();
-            for (const c of this.components) {
-              try {
-                oldComponentsStatus.set(c.componentId, JSON.parse(JSON.stringify(c.status || {})));
-              } catch {
-                oldComponentsStatus.set(c.componentId, { ...(c.status as Record<string, any>) });
-              }
-            }
             this.components.forEach(component => {
               if (componentsStatus[component.componentId] !== undefined) {
                 component.status = componentsStatus[component.componentId];
@@ -598,19 +590,18 @@ export class MultiServiceAccessory {
             // Notify TelevisionService about global status update for input source monitoring
             this.notifyTelevisionServiceOfStatusUpdate();
 
-            // Notify Matter adapters about polled status changes (for Robot Vacuum RVC) - only on change
+            // Notify Matter adapters about polled status changes (for Robot Vacuum RVC)
             try {
               const { matterRegistry } = require('./matter');
               for (const comp of this.components) {
-                const newStatus = (componentsStatus as Record<string, any>)[comp.componentId] as Record<string, any> | undefined;
-                if (!newStatus) {
-                  continue;
-                }
                 if (comp.componentId !== 'main') {
                   continue;
                 }
-                const oldStatus = oldComponentsStatus.get(comp.componentId) as Record<string, any> | undefined;
-                for (const capId of Object.keys(newStatus)) {
+                const status = comp.status as Record<string, any>;
+                if (!status) {
+                  continue;
+                }
+                for (const capId of Object.keys(status)) {
                   if (
                     !capId.startsWith('samsungce.robotCleaner') &&
                     capId !== 'robotCleanerMovement' &&
@@ -620,34 +611,25 @@ export class MultiServiceAccessory {
                   ) {
                     continue;
                   }
-                  const newCapAttrs = (newStatus as any)[capId];
-                  const oldCapAttrs = oldStatus?.[capId] as Record<string, any> | undefined;
-                  if (!newCapAttrs || typeof newCapAttrs !== 'object') {
+                  const capAttrs = status[capId];
+                  if (!capAttrs || typeof capAttrs !== 'object') {
                     continue;
                   }
-                  for (const attr of Object.keys(newCapAttrs)) {
-                    const newAttrObj: any = (newCapAttrs as any)[attr];
-                    if (!newAttrObj || typeof newAttrObj !== 'object' || !('value' in newAttrObj)) {
-                      continue;
+                  for (const attr of Object.keys(capAttrs)) {
+                    const attrObj: any = (capAttrs as any)[attr];
+                    if (attrObj && typeof attrObj === 'object' && 'value' in attrObj) {
+                      if (attrObj.value === null) {
+                        continue;
+                      }
+                      const event = {
+                        deviceId: this.accessory.context.device.deviceId,
+                        componentId: comp.componentId,
+                        capability: capId,
+                        attribute: attr,
+                        value: attrObj.value,
+                      };
+                      matterRegistry.processEvent(this.accessory.context.device.deviceId, event);
                     }
-                    if (newAttrObj.value === null) {
-                      continue;
-                    }
-                    const oldAttrObj: any = oldCapAttrs?.[attr];
-                    const oldValue = oldAttrObj?.value;
-                    const newValStr = JSON.stringify(newAttrObj.value);
-                    const oldValStr = JSON.stringify(oldValue);
-                    if (newValStr === oldValStr) {
-                      continue;
-                    }
-                    const event = {
-                      deviceId: this.accessory.context.device.deviceId,
-                      componentId: comp.componentId,
-                      capability: capId,
-                      attribute: attr,
-                      value: newAttrObj.value,
-                    };
-                    matterRegistry.processEvent(this.accessory.context.device.deviceId, event);
                   }
                 }
               }
