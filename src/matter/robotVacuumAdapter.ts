@@ -523,6 +523,25 @@ this.pushOperationalState();
 
   private async handleIdentifyCommand(identifyTime: number): Promise<boolean> {
     this.log.info(`[RobotVacuumAdapter] Identify locate request time=${identifyTime}s`);
+    // Try multiple strategies for Samsung locate
+    const strategies: Array<[string, string, any[]?]> = [
+      ['main', 'execute', ['findMyRobot', {}]],
+      ['main', 'execute', ['find', {}]],
+      ['main', 'samsungce.robotCleanerOperatingState', ['setOperatingState', ['findingPet']]],
+      ['main', 'audioNotification', ['playTrack', ['https://example.com/locate.mp3', 80]]],
+    ];
+    for (const [comp, cap, args] of strategies) {
+      const cmd = args?.[0] as string || cap;
+      const cmdArgs = args?.slice(1) as any[] | undefined;
+      this.log.info(`[RobotVacuumAdapter] Trying locate: ${cap}.${cmd}`);
+      const ok = await this.sendSmartThingsCommand(comp, cap, cmd, cmdArgs);
+      if (ok) {
+        this.log.info(`[RobotVacuumAdapter] Locate succeeded via ${cap}.${cmd}`);
+        return true;
+      }
+    }
+    this.log.warn('[RobotVacuumAdapter] Locate failed - all strategies exhausted');
+    // Still return true to satisfy Matter (device will blink in Home app even if no sound)
     return true;
   }
 
