@@ -446,15 +446,15 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     if (!this.matterApi || !this.context) {
       return;
     }
-    const deviceId = this.context.deviceId;
+    const deviceId = this.accessory!.UUID;
     try {
-      await this.matterApi.updateAccessoryState(deviceId, MatterClusterNames.RvcOperationalState, {
+      await this.matterApi.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.RvcOperationalState, {
         operationalState: this.currentOperationalState,
         operationalError: MatterRvcOperationalState.OperationalError.NO_ERROR,
       });
-      await this.matterApi.updateAccessoryState(deviceId, MatterClusterNames.RvcCleanMode, { currentMode: this.currentCleanMode });
-      await this.matterApi.updateAccessoryState(deviceId, MatterClusterNames.RvcRunMode, { currentMode: this.currentRunMode });
-      await this.matterApi.updateAccessoryState(deviceId, MatterClusterNames.PowerSource, {
+      await this.matterApi.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.RvcCleanMode, { currentMode: this.currentCleanMode });
+      await this.matterApi.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.RvcRunMode, { currentMode: this.currentRunMode });
+      await this.matterApi.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.PowerSource, {
         batChargeLevel: this.batteryLevelToMatterEnum(this.currentBatteryLevel),
         batPercentRemaining: this.currentBatteryLevel * 2,
         batChargeState: this.getMatterBatChargeState(),
@@ -464,7 +464,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       });
       const serviceArea = this.buildServiceAreaCluster();
       if (serviceArea) {
-        await this.matterApi.updateAccessoryState(deviceId, MatterClusterNames.ServiceArea, serviceArea);
+        await this.matterApi.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.ServiceArea, serviceArea);
       }
       this.log.debug('[RobotVacuumAdapter] Updated Matter cluster states after registration');
     } catch (error) {
@@ -496,7 +496,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     this.currentPowerOn = targetState;
     const success = await this.sendSmartThingsCommand('main', 'switch', targetState ? 'on' : 'off');
     if (success) {
-      this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.OnOff, { onOff: targetState });
+      this.matterApi?.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.OnOff, { onOff: targetState });
       this.updateOperationalStateFromPower(targetState);
     }
     return success;
@@ -629,7 +629,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     const success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningMode', 'setCleaningMode', [stMode]);
     if (success) {
       this.currentCleanMode = mode;
-      this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.RvcCleanMode, { currentMode: mode });
+      this.matterApi?.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.RvcCleanMode, { currentMode: mode });
     }
     return success;
   }
@@ -646,7 +646,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       const ok = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerOperatingState', 'pause');
       if (ok) {
         this.currentRunMode = mode;
-        this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.RvcRunMode, { currentMode: mode });
+        this.matterApi?.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.RvcRunMode, { currentMode: mode });
         this.currentOperationalState = MatterRvcOperationalState.OperationalState.PAUSED;
         this.pushOperationalState();
       }
@@ -665,7 +665,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     const success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningType', 'setCleaningType', [stMode]);
     if (success) {
       this.currentRunMode = mode;
-      this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.RvcRunMode, { currentMode: mode });
+      this.matterApi?.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.RvcRunMode, { currentMode: mode });
     } else {
       this.log.warn(`[RobotVacuumAdapter] setCleaningType failed for ${stMode}`);
     }
@@ -716,7 +716,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       this.log.info(`[RobotVacuumAdapter] Fallback SelectAreas map ${firstMapId} areas ${areaIdStrs}`);
       const ok = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningMode', 'setCleaningMode', ['area', { mapId: firstMapId, areaIds: areaIdStrs }]);
       if (ok) {
-        this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.ServiceArea, { selectedAreas: areaIds });
+        this.matterApi?.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.ServiceArea, { selectedAreas: areaIds });
       }
       return ok;
     }
@@ -725,7 +725,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     this.log.info(`[RobotVacuumAdapter] setCleaningMode area map ${firstMapId} areas ${areaIdsStr}`);
     const success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningMode', 'setCleaningMode', ['area', { mapId: String(firstMapId), areaIds: areaIdsStr }]);
     if (success) {
-      this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.ServiceArea, { selectedAreas: areaIds });
+      this.matterApi?.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.ServiceArea, { selectedAreas: areaIds });
     }
     return success;
   }
@@ -739,7 +739,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     if (!this.matterApi || !this.context) {
       return;
     }
-    const uuid = this.context.deviceId;
+    const uuid = this.accessory!.UUID;
     if (state[MatterClusterNames.OnOff]) {
       this.matterApi?.updateAccessoryState(uuid, MatterClusterNames.OnOff, state[MatterClusterNames.OnOff]);
     }
@@ -764,7 +764,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     if (!this.matterApi || !this.context) {
       return;
     }
-    this.matterApi?.updateAccessoryState(this.context.deviceId, MatterClusterNames.RvcOperationalState, {
+    this.matterApi?.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.RvcOperationalState, {
       operationalState: this.currentOperationalState,
       operationalError: MatterRvcOperationalState.OperationalError.NO_ERROR,
     });
@@ -813,7 +813,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       this.currentOperationalState = mapped;
       this.pushOperationalState();
       // update PowerSource charge state as well
-      this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.PowerSource, {
+      this.matterApi?.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.PowerSource, {
         batChargeLevel: this.batteryLevelToMatterEnum(this.currentBatteryLevel),
         batPercentRemaining: this.currentBatteryLevel * 2,
         batChargeState: this.getMatterBatChargeState(),
@@ -841,7 +841,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     const mapped = this.mapSamsungCleaningModeToMatter(mode);
     if (mapped !== undefined && mapped !== this.currentCleanMode) {
       this.currentCleanMode = mapped;
-      this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.RvcCleanMode, { currentMode: mapped });
+      this.matterApi?.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.RvcCleanMode, { currentMode: mapped });
     }
   }
 
@@ -853,7 +853,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     const mapped = this.mapStandardCleaningModeToMatter(mode);
     if (mapped !== undefined && mapped !== this.currentCleanMode) {
       this.currentCleanMode = mapped;
-      this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.RvcCleanMode, { currentMode: mapped });
+      this.matterApi?.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.RvcCleanMode, { currentMode: mapped });
     }
   }
 
@@ -872,7 +872,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     }
     if (newMode !== undefined && newMode !== this.currentCleanMode) {
       this.currentCleanMode = newMode;
-      this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.RvcCleanMode, { currentMode: newMode });
+      this.matterApi?.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.RvcCleanMode, { currentMode: newMode });
     }
   }
 
@@ -910,7 +910,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
         return;
       }
       this.currentRunMode = runMode;
-      this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.RvcRunMode, { currentMode: this.currentRunMode });
+      this.matterApi?.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.RvcRunMode, { currentMode: this.currentRunMode });
     }
   }
 
@@ -949,7 +949,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     const level = value as number;
     if (typeof level === 'number' && level !== this.currentBatteryLevel) {
       this.currentBatteryLevel = Math.max(0, Math.min(100, level));
-      this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.PowerSource, {
+      this.matterApi?.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.PowerSource, {
         batChargeLevel: this.batteryLevelToMatterEnum(this.currentBatteryLevel),
         batPercentRemaining: this.currentBatteryLevel * 2,
         batChargeState: this.getMatterBatChargeState(),
@@ -962,7 +962,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     // Rebuild ServiceArea when maps change
     const serviceArea = this.buildServiceAreaCluster();
     if (serviceArea) {
-      this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.ServiceArea, serviceArea);
+      this.matterApi?.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.ServiceArea, serviceArea);
     }
   }
 
@@ -988,7 +988,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     const powerOn = state === 'on';
     if (powerOn !== this.currentPowerOn) {
       this.currentPowerOn = powerOn;
-      this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.OnOff, { onOff: powerOn });
+      this.matterApi?.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.OnOff, { onOff: powerOn });
       this.updateOperationalStateFromPower(powerOn);
     }
   }
