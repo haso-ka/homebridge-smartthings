@@ -255,7 +255,6 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
             batChargeState: this.getMatterBatChargeState(),
             batReplacementNeeded: MatterPowerSource.BatReplacementNeeded,
             batReplaceability: MatterPowerSource.BatReplaceability.NOT_REPLACEABLE,
-            powerSource: MatterPowerSource.PowerSource.BATTERY,
           },
           ...(serviceAreaCluster ? { serviceArea: serviceAreaCluster } : {}),
         },
@@ -450,7 +449,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     try {
       await this.matterApi.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.RvcOperationalState, {
         operationalState: this.currentOperationalState,
-        operationalError: MatterRvcOperationalState.OperationalError.NO_ERROR,
+        operationalError: { errorStateId: MatterRvcOperationalState.OperationalError.NO_ERROR },
       });
       await this.matterApi.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.RvcCleanMode, { currentMode: this.currentCleanMode });
       await this.matterApi.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.RvcRunMode, { currentMode: this.currentRunMode });
@@ -458,7 +457,6 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
         batChargeLevel: this.batteryLevelToMatterEnum(this.currentBatteryLevel),
         batPercentRemaining: this.currentBatteryLevel * 2,
         batChargeState: this.getMatterBatChargeState(),
-        powerSource: MatterPowerSource.PowerSource.BATTERY,
         batReplacementNeeded: MatterPowerSource.BatReplacementNeeded,
         batReplaceability: MatterPowerSource.BatReplaceability.NOT_REPLACEABLE,
       });
@@ -766,7 +764,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     }
     this.matterApi?.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.RvcOperationalState, {
       operationalState: this.currentOperationalState,
-      operationalError: MatterRvcOperationalState.OperationalError.NO_ERROR,
+      operationalError: { errorStateId: MatterRvcOperationalState.OperationalError.NO_ERROR },
     });
   }
 
@@ -1216,14 +1214,13 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
 
     return {
       [MatterClusterNames.OnOff]: { onOff: this.currentPowerOn },
-      [MatterClusterNames.RvcOperationalState]: { operationalState: this.currentOperationalState, operationalError: MatterRvcOperationalState.OperationalError.NO_ERROR },
+      [MatterClusterNames.RvcOperationalState]: { operationalState: this.currentOperationalState, operationalError: { errorStateId: MatterRvcOperationalState.OperationalError.NO_ERROR } },
       [MatterClusterNames.RvcCleanMode]: { currentMode: this.currentCleanMode },
       [MatterClusterNames.RvcRunMode]: { currentMode: this.currentRunMode },
       [MatterClusterNames.PowerSource]: {
         batChargeLevel: this.batteryLevelToMatterEnum(this.currentBatteryLevel),
         batPercentRemaining: this.currentBatteryLevel * 2,
         batChargeState: this.getMatterBatChargeState(),
-        powerSource: MatterPowerSource.PowerSource.BATTERY,
       },
       ...(this.buildServiceAreaCluster() ? { [MatterClusterNames.ServiceArea]: this.buildServiceAreaCluster() } : {}),
     };
