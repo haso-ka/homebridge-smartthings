@@ -523,25 +523,6 @@ this.pushOperationalState();
 
   private async handleIdentifyCommand(identifyTime: number): Promise<boolean> {
     this.log.info(`[RobotVacuumAdapter] Identify locate request time=${identifyTime}s`);
-    // Try multiple strategies for Samsung locate
-    const strategies: Array<[string, string, any[]?]> = [
-      ['main', 'execute', ['findMyRobot', {}]],
-      ['main', 'execute', ['find', {}]],
-      ['main', 'samsungce.robotCleanerOperatingState', ['setOperatingState', ['findingPet']]],
-      ['main', 'audioNotification', ['playTrack', ['https://example.com/locate.mp3', 80]]],
-    ];
-    for (const [comp, cap, args] of strategies) {
-      const cmd = args?.[0] as string || cap;
-      const cmdArgs = args?.slice(1) as any[] | undefined;
-      this.log.info(`[RobotVacuumAdapter] Trying locate: ${cap}.${cmd}`);
-      const ok = await this.sendSmartThingsCommand(comp, cap, cmd, cmdArgs);
-      if (ok) {
-        this.log.info(`[RobotVacuumAdapter] Locate succeeded via ${cap}.${cmd}`);
-        return true;
-      }
-    }
-    this.log.warn('[RobotVacuumAdapter] Locate failed - all strategies exhausted');
-    // Still return true to satisfy Matter (device will blink in Home app even if no sound)
     return true;
   }
 
@@ -623,12 +604,6 @@ return false;
     if (success) {
       this.currentRunMode = mode;
       this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.RvcRunMode, { currentMode: mode });
-      // According to Matter spec, changing RunMode to cleaning should also start
-      const startOk = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerOperatingState', 'start');
-      if (startOk) {
-        this.currentOperationalState = MatterRvcOperationalState.OperationalState.RUNNING;
-        this.pushOperationalState();
-      }
     } else {
       this.log.warn(`[RobotVacuumAdapter] setCleaningType failed for ${stMode}`);
     }
@@ -680,9 +655,6 @@ mapGroups.set(mapId, []);
       const ok = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningMode', 'setCleaningMode', ['area', { mapId: firstMapId, areaIds: areaIdStrs }]);
       if (ok) {
         this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.ServiceArea, { selectedAreas: areaIds });
-        await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerOperatingState', 'start');
-        this.currentOperationalState = MatterRvcOperationalState.OperationalState.RUNNING;
-        this.pushOperationalState();
       }
       return ok;
     }
@@ -692,9 +664,6 @@ mapGroups.set(mapId, []);
     const success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningMode', 'setCleaningMode', ['area', { mapId: String(firstMapId), areaIds: areaIdsStr }]);
     if (success) {
       this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.ServiceArea, { selectedAreas: areaIds });
-      await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerOperatingState', 'start');
-      this.currentOperationalState = MatterRvcOperationalState.OperationalState.RUNNING;
-      this.pushOperationalState();
     }
     return success;
   }
