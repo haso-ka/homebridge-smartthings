@@ -133,8 +133,8 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
   private getMainStatus(): Record<string, any> {
     const mainComp = this.multiServiceAccessory.components.find(c => c.componentId === 'main');
     if (mainComp?.status) {
-return mainComp.status as Record<string, any>;
-}
+      return mainComp.status as Record<string, any>;
+    }
     return this.getDeviceStatus() as Record<string, any>;
   }
 
@@ -144,12 +144,19 @@ return mainComp.status as Record<string, any>;
       return;
     }
 
+    try {
+      await this.multiServiceAccessory.refreshStatus();
+      this.currentState = this.getInitialState();
+      this.log.info(`[RobotVacuumAdapter] Refreshed initial state for Matter: RunMode=${this.currentRunMode} OpState=${this.currentOperationalState} CleanMode=${this.currentCleanMode}`);
+    } catch (e) {
+      this.log.warn(`[RobotVacuumAdapter] Initial refreshStatus failed: ${e}`);
+    }
+
     this.log.info(`[RobotVacuumAdapter] setupMatterAccessory: RunMode=${this.currentRunMode} OpState=${this.currentOperationalState} CleanMode=${this.currentCleanMode}`);
 
     try {
       const uuid = this.accessory.UUID;
 
-      // ServiceArea supportedAreas from mapList
       const serviceAreaCluster = this.buildServiceAreaCluster();
 
       await this.matterApi.registerPlatformAccessories('homebridge-smartthings-oauth-custom-hsk', 'HomeBridgeSmartThingsCustomHSK', [{
@@ -219,52 +226,52 @@ return mainComp.status as Record<string, any>;
         handlers: {
           onOff: {
             on: async () => {
- await this.handleOnOffCommand('on');
-},
+              await this.handleOnOffCommand('on');
+            },
             off: async () => {
- await this.handleOnOffCommand('off');
-},
+              await this.handleOnOffCommand('off');
+            },
             toggle: async () => {
- await this.handleOnOffCommand(this.currentPowerOn ? 'off' : 'on');
-},
+              await this.handleOnOffCommand(this.currentPowerOn ? 'off' : 'on');
+            },
           },
           rvcOperationalState: {
             pause: async () => {
- await this.handleOperationalStateCommand('pause');
-},
+              await this.handleOperationalStateCommand('pause');
+            },
             resume: async () => {
- await this.handleOperationalStateCommand('resume');
-},
+              await this.handleOperationalStateCommand('resume');
+            },
             goHome: async () => {
- await this.handleOperationalStateCommand('goHome');
-},
+              await this.handleOperationalStateCommand('goHome');
+            },
           },
           identify: {
             identify: async (args: { identifyTime?: number }) => {
- await this.handleIdentifyCommand(args.identifyTime ?? 10);
-},
+              await this.handleIdentifyCommand(args.identifyTime ?? 10);
+            },
             triggerEffect: async (args: { effectId: number; effectVariant?: number }) => {
- await this.handleTriggerEffectCommand(args.effectId);
-},
+              await this.handleTriggerEffectCommand(args.effectId);
+            },
           },
           rvcCleanMode: {
             changeToMode: async (args: { newMode: number }) => {
- await this.handleCleanModeCommand('changeToMode', [args.newMode]);
-},
+              await this.handleCleanModeCommand('changeToMode', [args.newMode]);
+            },
           },
           rvcRunMode: {
             changeToMode: async (args: { newMode: number }) => {
- await this.handleRunModeCommand('changeToMode', [args.newMode]);
-},
+              await this.handleRunModeCommand('changeToMode', [args.newMode]);
+            },
           },
           ...(serviceAreaCluster ? {
             serviceArea: {
               selectAreas: async (args: { newAreas: number[] }) => {
- await this.handleServiceAreaSelectAreas(args.newAreas);
-},
+                await this.handleServiceAreaSelectAreas(args.newAreas);
+              },
               skipArea: async (args: { skippedArea: number }) => {
- await this.handleServiceAreaSkipArea(args.skippedArea);
-},
+                await this.handleServiceAreaSkipArea(args.skippedArea);
+              },
             },
           } : {}),
         },
@@ -401,8 +408,8 @@ return mainComp.status as Record<string, any>;
 
   private async updateMatterClustersAfterRegistration(): Promise<void> {
     if (!this.matterApi || !this.context) {
-return;
-}
+      return;
+    }
     const deviceId = this.context.deviceId;
     try {
       await this.matterApi.updateAccessoryState(deviceId, MatterClusterNames.RvcOperationalState, {
@@ -431,8 +438,8 @@ return;
 
   protected async handleMatterCommand(command: NormalizedMatterCommand): Promise<boolean> {
     if (!this.context) {
-return false;
-}
+      return false;
+    }
     try {
       switch (command.cluster) {
         case MatterClusterNames.OnOff: return await this.handleOnOffCommand(command.command);
@@ -471,44 +478,44 @@ return false;
         for (const cmd of tryCmds) {
           let ok = false;
           if (cmd === 'start') {
-ok = await this.sendSmartThingsCommand('main', cap, 'start');
-} else if (cmd === 'resume') {
-ok = await this.sendSmartThingsCommand('main', cap, 'resume');
-} else if (cmd === 'setOperatingState') {
-ok = await this.sendSmartThingsCommand('main', cap, 'setOperatingState', ['cleaning']);
-}
+            ok = await this.sendSmartThingsCommand('main', cap, 'start');
+          } else if (cmd === 'resume') {
+            ok = await this.sendSmartThingsCommand('main', cap, 'resume');
+          } else if (cmd === 'setOperatingState') {
+            ok = await this.sendSmartThingsCommand('main', cap, 'setOperatingState', ['cleaning']);
+          }
           if (ok) {
- success = true; break;
-}
+            success = true; break;
+          }
         }
         if (success) {
-this.currentOperationalState = MatterRvcOperationalState.OperationalState.RUNNING;
-}
+          this.currentOperationalState = MatterRvcOperationalState.OperationalState.RUNNING;
+        }
         break;
       }
       case 'pause': {
         for (const cmd of ['pause', 'setOperatingState']) {
           let ok = false;
           if (cmd === 'pause') {
-ok = await this.sendSmartThingsCommand('main', cap, 'pause');
-} else {
-ok = await this.sendSmartThingsCommand('main', cap, 'setOperatingState', ['paused']);
-}
+            ok = await this.sendSmartThingsCommand('main', cap, 'pause');
+          } else {
+            ok = await this.sendSmartThingsCommand('main', cap, 'setOperatingState', ['paused']);
+          }
           if (ok) {
- success = true; break;
-}
+            success = true; break;
+          }
         }
         if (success) {
-this.currentOperationalState = MatterRvcOperationalState.OperationalState.PAUSED;
-}
+          this.currentOperationalState = MatterRvcOperationalState.OperationalState.PAUSED;
+        }
         break;
       }
       case 'goHome':
       case 'stop': {
         success = await this.sendSmartThingsCommand('main', cap, 'returnToHome');
         if (success) {
-this.currentOperationalState = MatterRvcOperationalState.OperationalState.SEEKING_CHARGER;
-}
+          this.currentOperationalState = MatterRvcOperationalState.OperationalState.SEEKING_CHARGER;
+        }
         break;
       }
       default:
@@ -516,8 +523,8 @@ this.currentOperationalState = MatterRvcOperationalState.OperationalState.SEEKIN
         return false;
     }
     if (success) {
-this.pushOperationalState();
-}
+      this.pushOperationalState();
+    }
     return success;
   }
 
@@ -552,8 +559,8 @@ this.pushOperationalState();
 
   private async handleCleanModeCommand(command: string, args?: unknown[]): Promise<boolean> {
     if (command !== 'changeToMode' || !args || args.length === 0) {
-return false;
-}
+      return false;
+    }
     const mode = args[0] as number;
     this.log.info(`[RobotVacuumAdapter] handleCleanModeCommand mode=${mode}`);
 
@@ -562,15 +569,15 @@ return false;
     if (mode === MatterRvcCleanMode.SupportedModes.TURBO) {
       const ok = await this.sendSmartThingsCommand('main', 'robotCleanerTurboMode', 'setRobotCleanerTurboMode', ['on']);
       if (ok) {
- this.currentCleanMode = mode; this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.RvcCleanMode, { currentMode: mode });
-}
+        this.currentCleanMode = mode;
+      }
       return ok;
     }
     if (mode === MatterRvcCleanMode.SupportedModes.QUIET) {
       const ok = await this.sendSmartThingsCommand('main', 'robotCleanerTurboMode', 'setRobotCleanerTurboMode', ['silence']);
       if (ok) {
- this.currentCleanMode = mode; this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.RvcCleanMode, { currentMode: mode });
-}
+        this.currentCleanMode = mode;
+      }
       return ok;
     }
 
@@ -594,8 +601,8 @@ return false;
   private async handleRunModeCommand(command: string, args?: unknown[]): Promise<boolean> {
     this.log.info(`[RobotVacuumAdapter] handleRunModeCommand command=${command} args=${JSON.stringify(args)}`);
     if (command !== 'changeToMode' || !args || args.length === 0) {
-return false;
-}
+      return false;
+    }
     const mode = args[0] as number;
 
     // Idle should pause
@@ -656,15 +663,15 @@ return false;
       const areaId = aid % 100;
       const map = maps.find((m: any) => parseInt(m.id, 10)===mapId);
       if (!map) {
-continue;
-}
+        continue;
+      }
       const area = map.areaInfo?.find((a:any)=> parseInt(a.id, 10)===areaId);
       if (!area) {
         continue;
       }
       if (!mapGroups.has(mapId)) {
-mapGroups.set(mapId, []);
-}
+        mapGroups.set(mapId, []);
+      }
       mapGroups.get(mapId)!.push(String(areaId));
     }
     if (mapGroups.size === 0) {
@@ -694,33 +701,33 @@ mapGroups.set(mapId, []);
 
   protected pushStateToMatter(state: NormalizedMatterState): void {
     if (!this.matterApi || !this.context) {
-return;
-}
+      return;
+    }
     const uuid = this.context.deviceId;
     if (state[MatterClusterNames.OnOff]) {
-this.matterApi?.updateAccessoryState(uuid, MatterClusterNames.OnOff, state[MatterClusterNames.OnOff]);
-}
+      this.matterApi?.updateAccessoryState(uuid, MatterClusterNames.OnOff, state[MatterClusterNames.OnOff]);
+    }
     if (state[MatterClusterNames.RvcOperationalState]) {
-this.matterApi?.updateAccessoryState(uuid, MatterClusterNames.RvcOperationalState, state[MatterClusterNames.RvcOperationalState]);
-}
+      this.matterApi?.updateAccessoryState(uuid, MatterClusterNames.RvcOperationalState, state[MatterClusterNames.RvcOperationalState]);
+    }
     if (state[MatterClusterNames.RvcCleanMode]) {
-this.matterApi?.updateAccessoryState(uuid, MatterClusterNames.RvcCleanMode, state[MatterClusterNames.RvcCleanMode]);
-}
+      this.matterApi?.updateAccessoryState(uuid, MatterClusterNames.RvcCleanMode, state[MatterClusterNames.RvcCleanMode]);
+    }
     if (state[MatterClusterNames.RvcRunMode]) {
-this.matterApi?.updateAccessoryState(uuid, MatterClusterNames.RvcRunMode, state[MatterClusterNames.RvcRunMode]);
-}
+      this.matterApi?.updateAccessoryState(uuid, MatterClusterNames.RvcRunMode, state[MatterClusterNames.RvcRunMode]);
+    }
     if (state[MatterClusterNames.PowerSource]) {
-this.matterApi?.updateAccessoryState(uuid, MatterClusterNames.PowerSource, state[MatterClusterNames.PowerSource]);
-}
+      this.matterApi?.updateAccessoryState(uuid, MatterClusterNames.PowerSource, state[MatterClusterNames.PowerSource]);
+    }
     if (state[MatterClusterNames.ServiceArea]) {
-this.matterApi?.updateAccessoryState(uuid, MatterClusterNames.ServiceArea, state[MatterClusterNames.ServiceArea]);
-}
+      this.matterApi?.updateAccessoryState(uuid, MatterClusterNames.ServiceArea, state[MatterClusterNames.ServiceArea]);
+    }
   }
 
   private pushOperationalState(): void {
     if (!this.matterApi || !this.context) {
-return;
-}
+      return;
+    }
     this.matterApi?.updateAccessoryState(this.context.deviceId, MatterClusterNames.RvcOperationalState, {
       operationalState: this.currentOperationalState,
       operationalError: MatterRvcOperationalState.OperationalError.NO_ERROR,
@@ -762,8 +769,8 @@ return;
       return;
     }
     if (attribute !== 'operatingState') {
-return;
-}
+      return;
+    }
     const state = value as string;
     const mapped = this.mapSamsungOperatingStateToMatter(state);
     if (mapped !== undefined && mapped !== this.currentOperationalState) {
@@ -778,10 +785,10 @@ return;
     }
     // Also handle charging state for PowerSource
     if (state === 'charging' || state === 'chargingForRemainingJob') {
-this.currentCharging = true;
-} else if (state === 'charged' || state === 'flexCharged' || state === 'docked') {
-this.currentCharging = false;
-}
+      this.currentCharging = true;
+    } else if (state === 'charged' || state === 'flexCharged' || state === 'docked') {
+      this.currentCharging = false;
+    }
   }
 
   private handleSamsungCleaningModeEvent(attribute: string, value: unknown): void {
@@ -792,8 +799,8 @@ this.currentCharging = false;
       return;
     }
     if (attribute !== 'cleaningMode') {
-return;
-}
+      return;
+    }
     const mode = value as string;
     const mapped = this.mapSamsungCleaningModeToMatter(mode);
     if (mapped !== undefined && mapped !== this.currentCleanMode) {
@@ -804,8 +811,8 @@ return;
 
   private handleStandardCleaningModeEvent(attribute: string, value: unknown): void {
     if (attribute !== 'robotCleanerCleaningMode') {
-return;
-}
+      return;
+    }
     const mode = value as string;
     const mapped = this.mapStandardCleaningModeToMatter(mode);
     if (mapped !== undefined && mapped !== this.currentCleanMode) {
@@ -816,17 +823,17 @@ return;
 
   private handleTurboModeEvent(attribute: string, value: unknown): void {
     if (attribute !== 'robotCleanerTurboMode') {
-return;
-}
+      return;
+    }
     const mode = value as string;
     let newMode: number | undefined;
     if (mode === 'on') {
-newMode = MatterRvcCleanMode.CurrentMode.TURBO;
-} else if (mode === 'off') {
-newMode = MatterRvcCleanMode.CurrentMode.AUTO;
-} else if (mode === 'silence' || mode === 'extraSilence') {
-newMode = MatterRvcCleanMode.CurrentMode.QUIET;
-}
+      newMode = MatterRvcCleanMode.CurrentMode.TURBO;
+    } else if (mode === 'off') {
+      newMode = MatterRvcCleanMode.CurrentMode.AUTO;
+    } else if (mode === 'silence' || mode === 'extraSilence') {
+      newMode = MatterRvcCleanMode.CurrentMode.QUIET;
+    }
     if (newMode !== undefined && newMode !== this.currentCleanMode) {
       this.currentCleanMode = newMode;
       this.matterApi?.updateAccessoryState(this.context!.deviceId, MatterClusterNames.RvcCleanMode, { currentMode: newMode });
@@ -836,8 +843,8 @@ newMode = MatterRvcCleanMode.CurrentMode.QUIET;
   private handleMovementEvent(attribute: string, value: unknown): void {
     this.log.info(`[RobotVacuumAdapter] Movement attr ${attribute}=${JSON.stringify(value)}`);
     if (attribute !== 'robotCleanerMovement') {
-return;
-}
+      return;
+    }
     const mode = value as string;
     const mapped = this.mapRobotCleanerMovementToMatter(mode);
     if (mapped !== undefined && mapped !== this.currentOperationalState) {
@@ -855,8 +862,8 @@ return;
       return;
     }
     if (attribute !== 'cleaningType') {
-return;
-}
+      return;
+    }
     const type = value as string;
     const runMode = this.mapSamsungCleaningTypeToRunMode(type);
     if (runMode !== undefined && runMode !== this.currentRunMode) {
@@ -878,8 +885,8 @@ return;
       return;
     }
     if (attribute !== 'drivingMode') {
-return;
-}
+      return;
+    }
     const mode = value as string;
     this.currentDrivingMode = mode;
     // DrivingMode not directly mapped to Matter, but could affect CleanMode label
@@ -893,16 +900,16 @@ return;
       return;
     }
     if (attribute !== 'waterSprayLevel') {
-return;
-}
+      return;
+    }
     this.currentWaterSprayLevel = value as string;
     this.log.info(`[RobotVacuumAdapter] WaterSprayLevel updated to ${this.currentWaterSprayLevel}`);
   }
 
   private handleBatteryEvent(attribute: string, value: unknown): void {
     if (attribute !== 'battery') {
-return;
-}
+      return;
+    }
     const level = value as number;
     if (typeof level === 'number' && level !== this.currentBatteryLevel) {
       this.currentBatteryLevel = Math.max(0, Math.min(100, level));
@@ -929,18 +936,18 @@ return;
 
   private batteryLevelToMatterEnum(level: number): number {
     if (level >= 50) {
-return MatterPowerSource.BatChargeLevel.OK;
-}
+      return MatterPowerSource.BatChargeLevel.OK;
+    }
     if (level >= 20) {
-return MatterPowerSource.BatChargeLevel.WARNING;
-}
+      return MatterPowerSource.BatChargeLevel.WARNING;
+    }
     return MatterPowerSource.BatChargeLevel.CRITICAL;
   }
 
   private handleSwitchEvent(attribute: string, value: unknown): void {
     if (attribute !== 'switch') {
-return;
-}
+      return;
+    }
     const state = value as string;
     const powerOn = state === 'on';
     if (powerOn !== this.currentPowerOn) {
@@ -1090,47 +1097,47 @@ return;
     if (opStateStatus?.operatingState?.value) {
       const mapped = this.mapSamsungOperatingStateToMatter(opStateStatus.operatingState.value);
       if (mapped !== undefined) {
-this.currentOperationalState = mapped;
-}
+        this.currentOperationalState = mapped;
+      }
       if (opStateStatus.operatingState.value === 'charging' || opStateStatus.operatingState.value === 'chargingForRemainingJob') {
-this.currentCharging = true;
-} else if (['charged', 'flexCharged', 'docked'].includes(opStateStatus.operatingState.value)) {
- this.currentCharging = false;
-}
+        this.currentCharging = true;
+      } else if (['charged', 'flexCharged', 'docked'].includes(opStateStatus.operatingState.value)) {
+        this.currentCharging = false;
+      }
     } else if (movementStatus?.robotCleanerMovement?.value) {
       const mapped = this.mapRobotCleanerMovementToMatter(movementStatus.robotCleanerMovement.value);
       if (mapped !== undefined) {
-this.currentOperationalState = mapped;
-}
+        this.currentOperationalState = mapped;
+      }
     }
 
     // DrivingMode and Water are not operational, just stored
     if (drivingStatus?.drivingMode?.value) {
-this.currentDrivingMode = drivingStatus.drivingMode.value;
-}
+      this.currentDrivingMode = drivingStatus.drivingMode.value;
+    }
     if (waterStatus?.waterSprayLevel?.value) {
-this.currentWaterSprayLevel = waterStatus.waterSprayLevel.value;
-}
+      this.currentWaterSprayLevel = waterStatus.waterSprayLevel.value;
+    }
 
     // CleanMode: samsung cleaningMode > standard > turbo > cleaningType
     if (sCleanModeStatus?.cleaningMode?.value) {
       const mapped = this.mapSamsungCleaningModeToMatter(sCleanModeStatus.cleaningMode.value);
       if (mapped !== undefined) {
-this.currentCleanMode = mapped;
-}
+        this.currentCleanMode = mapped;
+      }
     } else if (stdCleanModeStatus?.robotCleanerCleaningMode?.value) {
       const mapped = this.mapStandardCleaningModeToMatter(stdCleanModeStatus.robotCleanerCleaningMode.value);
       if (mapped !== undefined) {
-this.currentCleanMode = mapped;
-}
+        this.currentCleanMode = mapped;
+      }
     }
     if (turboStatus?.robotCleanerTurboMode?.value) {
       const turbo = turboStatus.robotCleanerTurboMode.value;
       if (turbo === 'on') {
-this.currentCleanMode = MatterRvcCleanMode.CurrentMode.TURBO;
-} else if (turbo === 'silence' || turbo === 'extraSilence') {
-this.currentCleanMode = MatterRvcCleanMode.CurrentMode.QUIET;
-}
+        this.currentCleanMode = MatterRvcCleanMode.CurrentMode.TURBO;
+      } else if (turbo === 'silence' || turbo === 'extraSilence') {
+        this.currentCleanMode = MatterRvcCleanMode.CurrentMode.QUIET;
+      }
     }
     // CleaningType also influences CleanMode tags but not primary
     if (cleaningTypeStatus?.cleaningType?.value) {
