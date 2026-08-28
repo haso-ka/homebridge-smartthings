@@ -90,61 +90,63 @@ export const MatterRvcOperationalState = {
 } as const;
 
 export const MatterRvcCleanMode = {
-  SupportedModes: {
-    AUTO: 0,
-    QUICK: 1,
-    QUIET: 2,
-    DEEP: 3,
-    SPOT: 4,
-    MANUAL: 5,
-    EDGE: 6,
-    ZONE: 7,
-    MAP: 8,
-    SELECTIVE_ROOM: 9,
-    THOROUGH: 10,
-    TURBO: 11,
+  Type: {
+    VACUUM: 0,
+    MOP: 1,
+    VACUUM_AND_MOP: 2,
+    MOP_AFTER_VACUUM: 3,
   },
-  CurrentMode: {
-    AUTO: 0,
-    QUICK: 1,
-    QUIET: 2,
-    DEEP: 3,
-    SPOT: 4,
-    MANUAL: 5,
-    EDGE: 6,
-    ZONE: 7,
-    MAP: 8,
-    SELECTIVE_ROOM: 9,
-    THOROUGH: 10,
-    TURBO: 11,
-  },
-  ModeTag: {
-    VACUUM: 16385,
-    MOP: 16386,
-    VACUUM_THEN_MOP: 16387,
+  Tag: {
+    DEEP_CLEAN: 16384, // 0x4000
+    VACUUM: 16385, // 0x4001
+    MOP: 16386, // 0x4002
+    VACUUM_THEN_MOP: 16387, // 0x4003
   },
 } as const;
 
+
+export const MatterRvcCleanModeMap = {
+  vacuum: { mode: MatterRvcCleanMode.Type.VACUUM, label: 'Vacuum', tags: [MatterRvcCleanMode.Tag.VACUUM] },
+  mop: { mode: MatterRvcCleanMode.Type.MOP, label: 'Mop', tags: [MatterRvcCleanMode.Tag.MOP] },
+  vacuumAndMopTogether: { mode: MatterRvcCleanMode.Type.VACUUM_AND_MOP, label: 'Vacuum and Mop', tags: [MatterRvcCleanMode.Tag.VACUUM, MatterRvcCleanMode.Tag.MOP] },
+  mopAfterVacuum: { mode: MatterRvcCleanMode.Type.MOP_AFTER_VACUUM, label: 'Mop after Vacuum', tags: [MatterRvcCleanMode.Tag.VACUUM_THEN_MOP] },
+} as const;
+
 export const MatterRvcRunMode = {
-  SupportedModes: {
+  Type: {
     IDLE: 0,
-    VACUUM: 1,
-    MOP: 2,
-    VACUUM_AND_MOP: 3,
-    SWEEP: 4,
+    AUTO: 1,
+    SPOT: 2,
+    AREA: 3,
+    OBJECT: 4,
+    PATTERN_MAP: 5,
+    UNCLEANED_OBJECT: 6,
+    STOP: 7,
+    MANUAL: 8,
+    PET: 9,
+    MAP: 10,
+    CREATING_MAP: 11,
   },
-  CurrentMode: {
-    IDLE: 0,
-    VACUUM: 1,
-    MOP: 2,
-    VACUUM_AND_MOP: 3,
-    SWEEP: 4,
+  Tag: {
+    IDLE: 16384, // 0x4000
+    CLEANING: 16385, // 0x4001
+    MAPPING: 16386, // 0x4002
   },
-  ModeTag: {
-    IDLE: 16384,
-    CLEANING: 16385,
-    MAPPING: 16386,
-  },
+} as const;
+
+export const MatterRvcRunModeMap = {
+  idle: { mode: MatterRvcRunMode.Type.IDLE, label: 'Idle', tags: [MatterRvcRunMode.Tag.IDLE]},
+  auto: { mode: MatterRvcRunMode.Type.AUTO, label: 'Auto', tags: [MatterRvcRunMode.Tag.CLEANING]},
+  spot: { mode: MatterRvcRunMode.Type.SPOT, label: 'Spot', tags: [MatterRvcRunMode.Tag.CLEANING] },
+  area: { mode: MatterRvcRunMode.Type.AREA, label: 'Area', tags: [MatterRvcRunMode.Tag.CLEANING] },
+  object: { mode: MatterRvcRunMode.Type.OBJECT, label: 'Object', tags: [MatterRvcRunMode.Tag.CLEANING] },
+  patternMap: { mode: MatterRvcRunMode.Type.PATTERN_MAP, label: 'Pattern Map', tags: [MatterRvcRunMode.Tag.CLEANING] },
+  uncleanedObject: { mode: MatterRvcRunMode.Type.UNCLEANED_OBJECT, label: 'Uncleaned Object', tags: [MatterRvcRunMode.Tag.CLEANING] },
+  stop: { mode: MatterRvcRunMode.Type.STOP, label: 'Stop', tags: [MatterRvcRunMode.Tag.IDLE] },
+  map: { mode: MatterRvcRunMode.Type.MAP, label: 'Map', tags: [MatterRvcRunMode.Tag.CLEANING] },
+  manual: { mode: MatterRvcRunMode.Type.MANUAL, label: 'Manual', tags: [MatterRvcRunMode.Tag.CLEANING] },
+  pet: { mode: MatterRvcRunMode.Type.PET, label: 'Pet', tags: [MatterRvcRunMode.Tag.CLEANING] },
+  creatingMap: { mode: MatterRvcRunMode.Type.CREATING_MAP, label: 'Creating Map', tags: [MatterRvcRunMode.Tag.MAPPING] },
 } as const;
 
 export const MatterPowerSource = {
