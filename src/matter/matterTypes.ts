@@ -134,6 +134,8 @@ export const MatterRvcRunMode = {
   },
 } as const;
 
+export const MatterRvcRequiredRunMode = ['idle', 'auto']
+
 export const MatterRvcOptionalRunMode = ['stop']
 
 export const MatterRvcRunModeMap = {

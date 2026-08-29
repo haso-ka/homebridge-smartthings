@@ -11,6 +11,7 @@ import {
   MatterRvcOperationalState,
   MatterRvcCleanMode,
   MatterRvcRunMode,
+  MatterRvcRequiredRunMode,
   MatterRvcOptionalRunMode,
   MatterRvcCleanModeMap,
   MatterRvcRunModeMap,
@@ -324,7 +325,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     // Area/object cleaning must go via ServiceArea cluster (Matter 1.4), not RunMode.
     // This prevents Home's "Start" button from sending random area(3)/object(4)/uncleanedObject(6).
     // Always ensure idle+auto are present for a usable vacuum
-    let modes: string[] = ['idle', 'auto']
+    let modes: string[] = [...MatterRvcRequiredRunMode];
     // Deterministic order = ALLOWED order, intersection with what device actually supports
     modes.push(
       ...(MatterRvcOptionalRunMode as readonly string[]).filter(
@@ -792,7 +793,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     }
     if (attribute !== 'cleaningMode') return;
     const mode = value as string;
-    const mapped = this.mapCleaningModeToRunMode(mode);
+    const mapped = this.normalizeCleaningModeToRunMode(mode);
     if (mapped === undefined || mapped === this.currentRunMode) return;
     const isRunning = this.currentOperationalState === MatterRvcOperationalState.OperationalState.RUNNING
       || this.currentOperationalState === MatterRvcOperationalState.OperationalState.PAUSED;
@@ -809,7 +810,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     const mode = value as string;
     const mapped = this.mapStandardCleaningModeToMatter(mode);
     if (mapped === undefined) return;
-    const runMapped = this.mapCleaningModeToRunMode(mode);
+    const runMapped = this.normalizeCleaningModeToRunMode(mode);
     if (runMapped !== undefined && runMapped !== this.currentRunMode) {
       const isRunning = this.currentOperationalState === MatterRvcOperationalState.OperationalState.RUNNING
         || this.currentOperationalState === MatterRvcOperationalState.OperationalState.PAUSED;
@@ -1008,6 +1009,19 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     return MatterRvcRunModeMap[mode]?.mode;
   }
 
+  private normalizeCleaningModeToRunMode(mode: string): number | undefined {
+    const ALLOWED = new Set([...MatterRvcRequiredRunMode, ...MatterRvcOptionalRunMode]);
+    if (ALLOWED.has(mode)) {
+      return (MatterRvcRunModeMap as any)[mode]?.mode;
+    }
+    const entry = (MatterRvcRunModeMap as any)[mode];
+    if (entry?.tags?.includes(MatterRvcRunMode.Tag.CLEANING)) {
+      this.log.info(`[RobotVacuumAdapter] cleaningMode ${mode} is CLEANING -> normalizing RunMode to AUTO`);
+      return MatterRvcRunMode.Type.AUTO;
+    }
+    return MatterRvcRunMode.Type.IDLE;
+  }
+
   private mapCleaningTypeToCleanMode(type: string): number | undefined {
     return this.mapSamsungCleaningTypeToCleanMode(type);
   }
@@ -1096,7 +1110,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     }
 
     if (sCleanModeStatus?.cleaningMode?.value) {
-      const runMapped = this.mapCleaningModeToRunMode(sCleanModeStatus.cleaningMode.value);
+      const runMapped = this.normalizeCleaningModeToRunMode(sCleanModeStatus.cleaningMode.value);
       if (runMapped !== undefined) {
         const isRunning = this.currentOperationalState === MatterRvcOperationalState.OperationalState.RUNNING || this.currentOperationalState === MatterRvcOperationalState.OperationalState.PAUSED;
         if (isRunning) this.currentRunMode = runMapped;
