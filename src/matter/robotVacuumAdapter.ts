@@ -640,8 +640,16 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       case 'resume': {
         const areaPayload = this.getSelectedAreaPayload();
         if (areaPayload) {
-          this.log.info(`[RobotVacuumAdapter] start/resume with selectedAreas -> setCleaningMode area ${JSON.stringify(areaPayload)}`);
-          success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningMode', 'setCleaningMode', ['area', areaPayload]);
+          this.log.info(`[RobotVacuumAdapter] start/resume with selectedAreas -> setCleaningMode area ${JSON.stringify(areaPayload)} + movement`);
+          const modeOk = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningMode', 'setCleaningMode', ['area', areaPayload]);
+          if (!modeOk) {
+            this.log.error(`[RobotVacuumAdapter] setCleaningMode area failed`);
+            success = false;
+          } else {
+            // Small delay to let mode settle, then trigger actual cleaning
+            await new Promise(r => setTimeout(r, 500));
+            success = await this.sendSmartThingsCommand('main', 'robotCleanerMovement', 'setRobotCleanerMovement', ['cleaning']);
+          }
         } else {
           success = await this.sendSmartThingsCommand('main', 'robotCleanerMovement', 'setRobotCleanerMovement', ['cleaning']);
         }
@@ -737,8 +745,14 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     let success = false;
     const areaPayload = this.getSelectedAreaPayload();
     if (areaPayload && stMode !== 'stop' && stMode !== 'idle') {
-      this.log.info(`[RobotVacuumAdapter] RunMode change with selectedAreas -> setCleaningMode area ${JSON.stringify(areaPayload)}`);
-      success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningMode', 'setCleaningMode', ['area', areaPayload]);
+      this.log.info(`[RobotVacuumAdapter] RunMode change with selectedAreas -> setCleaningMode area ${JSON.stringify(areaPayload)} + movement`);
+      const modeOk = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningMode', 'setCleaningMode', ['area', areaPayload]);
+      if (!modeOk) {
+        success = false;
+      } else {
+        await new Promise(r => setTimeout(r, 500));
+        success = await this.sendSmartThingsCommand('main', 'robotCleanerMovement', 'setRobotCleanerMovement', ['cleaning']);
+      }
     } else {
       success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningMode', 'setCleaningMode', [stMode]);
     }
