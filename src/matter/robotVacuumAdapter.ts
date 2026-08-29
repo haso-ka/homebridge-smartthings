@@ -216,6 +216,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
             softwareVersionString: this.context.firmwareRevision || '1.0',
           },
           onOff: {
+            // Read-only: reports SmartThings switch state to Matter, but Matter cannot control it
             onOff: this.currentPowerOn,
           },
           identify: {
@@ -257,14 +258,15 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
         },
         handlers: {
           onOff: {
+            // Read-only: reject all OnOff commands from Matter/Home app
             on: async () => {
-              await this.handleOnOffCommand('on');
+              this.log.warn('[RobotVacuumAdapter] OnOff is read-only — ignoring Matter command: on');
             },
             off: async () => {
-              await this.handleOnOffCommand('off');
+              this.log.warn('[RobotVacuumAdapter] OnOff is read-only — ignoring Matter command: off');
             },
             toggle: async () => {
-              await this.handleOnOffCommand(this.currentPowerOn ? 'off' : 'on');
+              this.log.warn('[RobotVacuumAdapter] OnOff is read-only — ignoring Matter command: toggle');
             },
           },
           rvcOperationalState: {
@@ -489,7 +491,9 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     }
     try {
       switch (command.cluster) {
-        case MatterClusterNames.OnOff: return await this.handleOnOffCommand(command.command);
+        case MatterClusterNames.OnOff:
+          this.log.warn(`[RobotVacuumAdapter] OnOff cluster is read-only — rejecting command: ${command.command}`);
+          return false;
         case MatterClusterNames.RvcOperationalState: return await this.handleOperationalStateCommand(command.command);
         case MatterClusterNames.RvcCleanMode: return await this.handleCleanModeCommand(command.command, command.arguments);
         case MatterClusterNames.RvcRunMode: return await this.handleRunModeCommand(command.command, command.arguments);
@@ -500,17 +504,6 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       this.log.error(`[RobotVacuumAdapter] Error handling command ${command.cluster}.${command.command}: ${error}`);
       return false;
     }
-  }
-
-  private async handleOnOffCommand(command: string): Promise<boolean> {
-    const targetState = command === 'on';
-    this.currentPowerOn = targetState;
-    const success = await this.sendSmartThingsCommand('main', 'switch', targetState ? 'on' : 'off');
-    if (success) {
-      this.matterApi?.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.OnOff, { onOff: targetState });
-      this.updateOperationalStateFromPower(targetState);
-    }
-    return success;
   }
 
   private async handleOperationalStateCommand(command: string): Promise<boolean> {
