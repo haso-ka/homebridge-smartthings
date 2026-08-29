@@ -525,16 +525,16 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     switch (command) {
       case 'start':
       case 'resume':
-        success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerMovement', 'setRobotCleanerMovement', ['cleaning']);
+        success = await this.sendSmartThingsCommand('main', 'robotCleanerMovement', 'setRobotCleanerMovement', ['cleaning']);
         state = MatterRvcOperationalState.OperationalState.RUNNING;
         break;
       case 'goHome':
-        success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerMovement', 'setRobotCleanerMovement', ['homing']);
+        success = await this.sendSmartThingsCommand('main', 'robotCleanerMovement', 'setRobotCleanerMovement', ['homing']);
         state = MatterRvcOperationalState.OperationalState.SEEKING_CHARGER;
         break;
       case 'pause':
       case 'stop':
-        success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerMovement', 'setRobotCleanerMovement', ['pause']);
+        success = await this.sendSmartThingsCommand('main', 'robotCleanerMovement', 'setRobotCleanerMovement', ['pause']);
         state = MatterRvcOperationalState.OperationalState.PAUSED;
         break;
       default:
