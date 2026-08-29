@@ -488,14 +488,27 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
   }
 
   private getMatterBatChargeState(): number {
-    switch (this.currentOperationalState) {
-      case MatterRvcOperationalState.OperationalState.CHARGING:
-        return MatterPowerSource.BatChargeState.CHARGING;
-      case MatterRvcOperationalState.OperationalState.DOCKED:
-        return MatterPowerSource.BatChargeState.CHARGED;
-      default:
-        return MatterPowerSource.BatChargeState.NOT_CHARGING;
+    // Samsung reports many dock-stay states (washingMop/dryingMop/emptyStation etc.) while actually charging.
+    // Consider any docked-at-station state as charging/charged based on battery level.
+    const dockedStates = new Set<number>([
+      MatterRvcOperationalState.OperationalState.CHARGING,
+      MatterRvcOperationalState.OperationalState.DOCKED,
+      MatterRvcOperationalState.OperationalState.EMPTYING_DUST_BIN,
+      MatterRvcOperationalState.OperationalState.CLEANING_MOP,
+      MatterRvcOperationalState.OperationalState.FILLING_WATER_TANK,
+      MatterRvcOperationalState.OperationalState.UPDATING_MAPS,
+    ]);
+    if (this.currentOperationalState === MatterRvcOperationalState.OperationalState.CHARGING) {
+      return MatterPowerSource.BatChargeState.CHARGING;
     }
+    if (this.currentOperationalState === MatterRvcOperationalState.OperationalState.DOCKED) {
+      return this.currentBatteryLevel >= 100 ? MatterPowerSource.BatChargeState.CHARGED : MatterPowerSource.BatChargeState.CHARGING;
+    }
+    if (dockedStates.has(this.currentOperationalState)) {
+      // At station (e.g., dryingMop/washingMop) -> charging if not full
+      return this.currentBatteryLevel >= 100 ? MatterPowerSource.BatChargeState.CHARGED : MatterPowerSource.BatChargeState.CHARGING;
+    }
+    return MatterPowerSource.BatChargeState.NOT_CHARGING;
   }
 
   private async updateMatterClustersAfterRegistration(): Promise<void> {
