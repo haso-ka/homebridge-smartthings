@@ -480,7 +480,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       const maps: any[] = mapListStatus?.maps?.value || this.getMainStatus()['samsungce.robotCleanerMapList']?.maps?.value || [];
       const currentMapId = (mapListStatus as any)?.currentMapId?.value || this.getMainStatus()['samsungce.robotCleanerMapList']?.currentMapId?.value || '';
       const ids = maps.map((m: any) => String(m.id)).sort().join(',');
-      const areaSig = maps.map((m: any) => `${m.id}:${(m.areaInfo||[]).map((a:any)=>a.id).join(',')}`).join('|');
+      const areaSig = maps.map((m: any) => `${m.id}:${(m.areaInfo || []).map((a: any) => a.id).join(',')}`).join('|');
       return `${currentMapId}#${ids}#${areaSig}`;
     } catch {
       return '';
@@ -670,7 +670,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     const areaPayload = this.getSelectedAreaPayload();
     if (areaPayload && stMode !== 'stop' && stMode !== 'idle') {
       this.log.info(`[RobotVacuumAdapter] RunMode change with selectedAreas -> setCleaningMode area ${JSON.stringify(areaPayload)}`);
-      success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningMode', 'setCleaningMode', ['area', areaPayload]);
+      success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningMode', 'setCleaningMode', [stMode, areaPayload]);
     } else {
       success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningMode', 'setCleaningMode', [stMode]);
     }
