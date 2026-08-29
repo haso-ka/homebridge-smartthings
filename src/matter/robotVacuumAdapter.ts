@@ -116,6 +116,9 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
   private supportedWaterLevels: string[] = [];
   private supportedOperatingStates: string[] = [];
   private pollingInterval: NodeJS.Timeout | null = null;
+  // Matter side selected rooms (kept separately, not overwritten by polling)
+  private selectedAreas: number[] = [];
+  private lastMapSignature: string | null = null;
 
   constructor(platform: API, log: Logger, multiServiceAccessory: MultiServiceAccessory) {
     super(platform, log, multiServiceAccessory);
@@ -136,6 +139,20 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     this.pollingInterval = setInterval(async () => {
       try {
         await this.multiServiceAccessory.refreshStatus();
+        // Detect map itself changed -> re-initialize selected map/room from polled data
+        const newSig = this.getMapSignature();
+        if (this.lastMapSignature !== null && newSig !== this.lastMapSignature) {
+          this.log.info(`[RobotVacuumAdapter] Map changed detected via polling: ${this.lastMapSignature} -> ${newSig}, resetting selectedAreas`);
+          this.selectedAreas = [];
+          this.lastMapSignature = newSig;
+          const serviceArea = this.buildServiceAreaCluster();
+          if (serviceArea) {
+            await this.matterApi?.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.ServiceArea, serviceArea);
+          }
+        } else if (this.lastMapSignature === null) {
+          this.lastMapSignature = newSig;
+        }
+        // Note: selectedAreas is NOT synced from polling otherwise (kept separately on Matter side)
       } catch (e) {
         this.log.debug(`[RobotVacuumAdapter] Polling refresh failed: ${e}`);
       }
@@ -446,7 +463,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       return {
         supportedMaps,
         supportedAreas,
-        selectedAreas: [],
+        selectedAreas: [...this.selectedAreas],
         currentArea: null,
         estimatedEndTime: null,
         progress: [],
@@ -454,6 +471,19 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     } catch (e) {
       this.log.warn(`[RobotVacuumAdapter] Failed to build ServiceArea cluster: ${e}`);
       return null;
+    }
+  }
+
+  private getMapSignature(): string {
+    try {
+      const mapListStatus: any = this.getCapabilityStatus('samsungce.robotCleanerMapList');
+      const maps: any[] = mapListStatus?.maps?.value || this.getMainStatus()['samsungce.robotCleanerMapList']?.maps?.value || [];
+      const currentMapId = (mapListStatus as any)?.currentMapId?.value || this.getMainStatus()['samsungce.robotCleanerMapList']?.currentMapId?.value || '';
+      const ids = maps.map((m: any) => String(m.id)).sort().join(',');
+      const areaSig = maps.map((m: any) => `${m.id}:${(m.areaInfo||[]).map((a:any)=>a.id).join(',')}`).join('|');
+      return `${currentMapId}#${ids}#${areaSig}`;
+    } catch {
+      return '';
     }
   }
 
@@ -518,17 +548,38 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     }
   }
 
+  private getSelectedAreaPayload(): { mapId: string; areaIds: string[] } | null {
+    if (this.selectedAreas.length === 0) return null;
+    const mapGroups = new Map<string, string[]>();
+    for (const aid of this.selectedAreas) {
+      const mapId = String(Math.floor(aid / 100));
+      const areaId = String(aid % 100);
+      if (!mapGroups.has(mapId)) mapGroups.set(mapId, []);
+      mapGroups.get(mapId)!.push(areaId);
+    }
+    const firstMapId = [...mapGroups.keys()][0];
+    const areaIds = mapGroups.get(firstMapId)!;
+    return { mapId: firstMapId, areaIds };
+  }
+
   private async handleOperationalStateCommand(command: string): Promise<boolean> {
-    this.log.info(`[RobotVacuumAdapter] handleOperationalStateCommand: ${command}`);
+    this.log.info(`[RobotVacuumAdapter] handleOperationalStateCommand: ${command} selectedAreas=${JSON.stringify(this.selectedAreas)}`);
     let success = false;
     let state = 0;
     const cap = 'samsungce.robotCleanerOperatingState';
     switch (command) {
       case 'start':
-      case 'resume':
-        success = await this.sendSmartThingsCommand('main', 'robotCleanerMovement', 'setRobotCleanerMovement', ['cleaning']);
+      case 'resume': {
+        const areaPayload = this.getSelectedAreaPayload();
+        if (areaPayload) {
+          this.log.info(`[RobotVacuumAdapter] start/resume with selectedAreas -> setCleaningMode area ${JSON.stringify(areaPayload)}`);
+          success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningMode', 'setCleaningMode', ['area', areaPayload]);
+        } else {
+          success = await this.sendSmartThingsCommand('main', 'robotCleanerMovement', 'setRobotCleanerMovement', ['cleaning']);
+        }
         state = MatterRvcOperationalState.OperationalState.RUNNING;
         break;
+      }
       case 'goHome':
         success = await this.sendSmartThingsCommand('main', 'robotCleanerMovement', 'setRobotCleanerMovement', ['homing']);
         state = MatterRvcOperationalState.OperationalState.SEEKING_CHARGER;
@@ -613,8 +664,16 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       return false;
     }
 
-    this.log.info(`[RobotVacuumAdapter] setCleaningMode ${stMode} for Matter mode ${mode}`);
-    const success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningMode', 'setCleaningMode', [stMode]);
+    this.log.info(`[RobotVacuumAdapter] setCleaningMode ${stMode} for Matter mode ${mode} selectedAreas=${JSON.stringify(this.selectedAreas)}`);
+    // If rooms are selected, send area cleaning together with runmode change
+    let success = false;
+    const areaPayload = this.getSelectedAreaPayload();
+    if (areaPayload && stMode !== 'stop' && stMode !== 'idle') {
+      this.log.info(`[RobotVacuumAdapter] RunMode change with selectedAreas -> setCleaningMode area ${JSON.stringify(areaPayload)}`);
+      success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningMode', 'setCleaningMode', ['area', areaPayload]);
+    } else {
+      success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningMode', 'setCleaningMode', [stMode]);
+    }
     if (success) {
       this.currentRunMode = mode;
       this.matterApi?.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.RvcRunMode, { currentMode: mode });
@@ -643,48 +702,44 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
   }
 
   private async handleServiceAreaSelectAreas(areaIds: number[]): Promise<boolean> {
-    this.log.info(`[RobotVacuumAdapter] SelectAreas ${areaIds}`);
+    this.log.info(`[RobotVacuumAdapter] SelectAreas ${areaIds} (store for next run/start)`);
+    // Validate against visible map and store separately on Matter side
     const mapListStatus: any = this.getCapabilityStatus('samsungce.robotCleanerMapList');
     const maps: any[] = mapListStatus?.maps?.value || this.getMainStatus()['samsungce.robotCleanerMapList']?.maps?.value || [];
     if (!maps || maps.length === 0) {
       this.log.warn('[RobotVacuumAdapter] No maps available for SelectAreas');
       return false;
     }
-    const mapGroups = new Map<number, string[]>();
+    const currentMapId = (mapListStatus as any)?.currentMapId?.value || this.getMainStatus()['samsungce.robotCleanerMapList']?.currentMapId?.value;
+    let visibleMapId: string | null = currentMapId ? String(currentMapId) : null;
+    if (!visibleMapId) {
+      const targetMaps = [...maps].sort((a: any, b: any) => {
+        const aTime = new Date(a.updatedTime || a.createdTime || 0).getTime();
+        const bTime = new Date(b.updatedTime || b.createdTime || 0).getTime();
+        return bTime - aTime;
+      });
+      visibleMapId = targetMaps[0]?.id ? String(targetMaps[0].id) : String(maps[0].id);
+    }
+    const validAreaIds: number[] = [];
     for (const aid of areaIds) {
       const mapId = Math.floor(aid / 100);
-      const areaId = aid % 100;
+      if (String(mapId) !== String(visibleMapId)) {
+        this.log.warn(`[RobotVacuumAdapter] Ignoring area ${aid} from non-visible map ${mapId} (visible=${visibleMapId})`);
+        continue;
+      }
       const map = maps.find((m: any) => parseInt(m.id, 10) === mapId);
-      if (!map) {
-        continue;
-      }
-      const area = map.areaInfo?.find((a: any) => parseInt(a.id, 10) === areaId);
+      const areaId = aid % 100;
+      const area = map?.areaInfo?.find((a: any) => parseInt(a.id, 10) === areaId);
       if (!area) {
+        this.log.warn(`[RobotVacuumAdapter] Ignoring unknown area ${aid}`);
         continue;
       }
-      if (!mapGroups.has(mapId)) {
-        mapGroups.set(mapId, []);
-      }
-      mapGroups.get(mapId)!.push(String(areaId));
+      validAreaIds.push(aid);
     }
-    if (mapGroups.size === 0) {
-      const firstMapId = maps[0].id;
-      const areaIdStrs = areaIds.map(a => String(a % 100));
-      this.log.info(`[RobotVacuumAdapter] Fallback SelectAreas map ${firstMapId} areas ${areaIdStrs}`);
-      const ok = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningMode', 'setCleaningMode', ['area', { mapId: firstMapId, areaIds: areaIdStrs }]);
-      if (ok) {
-        this.matterApi?.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.ServiceArea, { selectedAreas: areaIds });
-      }
-      return ok;
-    }
-    const firstMapId = [...mapGroups.keys()][0];
-    const areaIdsStr = mapGroups.get(firstMapId)!;
-    this.log.info(`[RobotVacuumAdapter] setCleaningMode area map ${firstMapId} areas ${areaIdsStr}`);
-    const success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningMode', 'setCleaningMode', ['area', { mapId: String(firstMapId), areaIds: areaIdsStr }]);
-    if (success) {
-      this.matterApi?.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.ServiceArea, { selectedAreas: areaIds });
-    }
-    return success;
+    this.selectedAreas = validAreaIds;
+    this.log.info(`[RobotVacuumAdapter] Stored selectedAreas=${JSON.stringify(this.selectedAreas)} for visible map ${visibleMapId}`);
+    this.matterApi?.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.ServiceArea, { selectedAreas: [...this.selectedAreas] });
+    return true;
   }
 
   private async handleServiceAreaSkipArea(areaId: number): Promise<boolean> {
@@ -1069,6 +1124,12 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     }
     if (mapListStatus?.maps?.value) {
       this.log.debug(`[RobotVacuumAdapter] maps: ${mapListStatus.maps.value.length} maps`);
+    }
+    // Init Matter selected areas once at init; after that keep separately (not synced via polling)
+    if (this.lastMapSignature === null) {
+      this.selectedAreas = [];
+      this.lastMapSignature = this.getMapSignature();
+      this.log.debug(`[RobotVacuumAdapter] init selectedAreas=${JSON.stringify(this.selectedAreas)} mapSig=${this.lastMapSignature}`);
     }
 
     // Determine operational state - priority: samsungce operatingState > movement
