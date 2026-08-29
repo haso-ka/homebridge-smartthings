@@ -356,7 +356,7 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
           try {
             // Handle special characters like right single quote (') that SmartThings uses
             deviceName = device.label.toString().replace(/[\u2018\u2019]/g, '\'').replace(/[\u201C\u201D]/g, '"');
-          } catch(error) {
+          } catch (error) {
             this.log.warn(`Error getting device name for ${device.label}: ${error}`);
             deviceName = device.label;
           }
@@ -537,13 +537,14 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
       }
 
       try {
+        const ocf = (device as any).ocf || {};
         const context = {
           deviceId: device.deviceId,
           label: device.label,
-          manufacturerName: device.manufacturerName || 'Samsung',
-          model: device.modelName || 'SmartThings Robot Vacuum',
+          manufacturerName: device.manufacturerName || (device as any).mnmn || ocf.manufacturerName || 'Samsung Electronics',
+          model: (device as any).modelNumber || device.modelName || ocf.modelNumber || (device as any).vid || 'Samsung Robot Vacuum',
           serialNumber: device.deviceId,
-          firmwareRevision: device.firmwareVersion || '1.0',
+          firmwareRevision: device.firmwareVersion || ocf.firmwareVersion || ocf.mnfv || 'Unknown',
           capabilities: Array.from(
             new Set(device.components.flatMap((c: any) => c.capabilities.map((cap: any) => cap.id as string))),
           ) as string[],
@@ -693,7 +694,7 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
     // compartments the user has disabled in the SmartThings app before
     // creating any HomeKit services for them.
     if (this.config.ExposeMultiZoneRefrigerator === true
-        && hasRefrigeratorOcfDriver(device)) {
+      && hasRefrigeratorOcfDriver(device)) {
 
       // main and cooler usually mirror the same temperatureMeasurement reading;
       // strip it from cooler so HomeKit doesn't get a duplicate Refrigerator tile.
@@ -868,9 +869,9 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
       const networkErrorCodes = ['ENOTFOUND', 'ETIMEDOUT', 'ECONNREFUSED', 'ECONNRESET', 'EAI_AGAIN'];
       const errorCode = (error as NodeJS.ErrnoException).code;
       return networkErrorCodes.includes(errorCode ?? '') ||
-             error.message.includes('getaddrinfo') ||
-             error.message.includes('timeout') ||
-             error.message.includes('network');
+        error.message.includes('getaddrinfo') ||
+        error.message.includes('timeout') ||
+        error.message.includes('network');
     }
     return false;
   }
