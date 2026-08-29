@@ -35,7 +35,7 @@ export interface MatterAdapter {
 }
 
 export interface MatterAdapterConstructor {
-  new (
+  new(
     platform: API,
     log: Logger,
     multiServiceAccessory: MultiServiceAccessory
@@ -134,9 +134,11 @@ export const MatterRvcRunMode = {
   },
 } as const;
 
+export const MatterRvcOptionalRunMode = ['stop']
+
 export const MatterRvcRunModeMap = {
-  idle: { mode: MatterRvcRunMode.Type.IDLE, label: 'Idle', tags: [MatterRvcRunMode.Tag.IDLE]},
-  auto: { mode: MatterRvcRunMode.Type.AUTO, label: 'Auto', tags: [MatterRvcRunMode.Tag.CLEANING]},
+  idle: { mode: MatterRvcRunMode.Type.IDLE, label: 'Idle', tags: [MatterRvcRunMode.Tag.IDLE] },
+  auto: { mode: MatterRvcRunMode.Type.AUTO, label: 'Auto', tags: [MatterRvcRunMode.Tag.CLEANING] },
   spot: { mode: MatterRvcRunMode.Type.SPOT, label: 'Spot', tags: [MatterRvcRunMode.Tag.CLEANING] },
   area: { mode: MatterRvcRunMode.Type.AREA, label: 'Area', tags: [MatterRvcRunMode.Tag.CLEANING] },
   object: { mode: MatterRvcRunMode.Type.OBJECT, label: 'Object', tags: [MatterRvcRunMode.Tag.CLEANING] },
