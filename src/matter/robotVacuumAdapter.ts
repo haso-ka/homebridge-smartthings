@@ -119,6 +119,10 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
   // Matter side selected rooms (kept separately, not overwritten by polling)
   private selectedAreas: number[] = [];
   private lastMapSignature: string | null = null;
+  private lastFirmwareRevision: string | null = null;
+  private lastModel: string | null = null;
+  private lastManufacturer: string | null = null;
+  private pollCount = 0;
 
   constructor(platform: API, log: Logger, multiServiceAccessory: MultiServiceAccessory) {
     super(platform, log, multiServiceAccessory);
@@ -153,6 +157,11 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
           this.lastMapSignature = newSig;
         }
         // Note: selectedAreas is NOT synced from polling otherwise (kept separately on Matter side)
+        // Detect manufacturer/model/firmware changes via SmartThings device API during polling
+        this.pollCount++;
+        if (this.pollCount % 6 === 0) { // every ~60s (6 * 10s)
+          await this.syncBasicInformationIfChanged();
+        }
       } catch (e) {
         this.log.debug(`[RobotVacuumAdapter] Polling refresh failed: ${e}`);
       }
@@ -487,6 +496,52 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     }
   }
 
+  private async syncBasicInformationIfChanged(): Promise<void> {
+    if (!this.matterApi || !this.accessory || !this.context) return;
+    try {
+      const platform: any = (this.multiServiceAccessory as any).platform;
+      const axInstance = platform?.axInstance;
+      if (!axInstance || !this.context.deviceId) return;
+      const res = await axInstance.get(`devices/${this.context.deviceId}`);
+      const device = res.data;
+      const ocf = device?.ocf || {};
+      const manufacturer = device?.manufacturerName || device?.mnmn || ocf.manufacturerName || 'Samsung Electronics';
+      const model = device?.modelNumber || device?.modelName || ocf.modelNumber || device?.vid || 'Samsung Robot Vacuum';
+      const firmware = device?.firmwareVersion || ocf.firmwareVersion || ocf.mnfv || 'Unknown';
+      const serial = device?.deviceId || this.context.deviceId;
+
+      // Init trackers on first run
+      if (this.lastManufacturer === null) this.lastManufacturer = this.context.manufacturerName || null;
+      if (this.lastModel === null) this.lastModel = this.context.model || null;
+      if (this.lastFirmwareRevision === null) this.lastFirmwareRevision = this.context.firmwareRevision || null;
+
+      const changed = manufacturer !== this.lastManufacturer || model !== this.lastModel || firmware !== this.lastFirmwareRevision;
+      if (!changed) return;
+
+      this.log.info(`[RobotVacuumAdapter] BasicInformation changed: manufacturer ${this.lastManufacturer}->${manufacturer}, model ${this.lastModel}->${model}, firmware ${this.lastFirmwareRevision}->${firmware}`);
+      this.lastManufacturer = manufacturer;
+      this.lastModel = model;
+      this.lastFirmwareRevision = firmware;
+      // Update context for future
+      this.context.manufacturerName = manufacturer;
+      this.context.model = model;
+      this.context.firmwareRevision = firmware;
+      this.context.serialNumber = serial;
+
+      await this.matterApi.updateAccessoryState(this.accessory.UUID, MatterClusterNames.BasicInformation, {
+        vendorName: manufacturer,
+        productName: this.context.label,
+        productId: 0x800A,
+        vendorId: 0x10AF,
+        serialNumber: serial,
+        softwareVersionString: firmware,
+      });
+      this.log.info(`[RobotVacuumAdapter] BasicInformation synced to Matter`);
+    } catch (e) {
+      this.log.debug(`[RobotVacuumAdapter] syncBasicInformation failed: ${e}`);
+    }
+  }
+
   private getMatterBatChargeState(): number {
     // Samsung reports many dock-stay states (washingMop/dryingMop/emptyStation etc.) while actually charging.
     // Consider any docked-at-station state as charging/charged based on battery level.
@@ -683,7 +738,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     const areaPayload = this.getSelectedAreaPayload();
     if (areaPayload && stMode !== 'stop' && stMode !== 'idle') {
       this.log.info(`[RobotVacuumAdapter] RunMode change with selectedAreas -> setCleaningMode area ${JSON.stringify(areaPayload)}`);
-      success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningMode', 'setCleaningMode', [stMode, areaPayload]);
+      success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningMode', 'setCleaningMode', ['area', areaPayload]);
     } else {
       success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningMode', 'setCleaningMode', [stMode]);
     }
@@ -1143,6 +1198,12 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       this.selectedAreas = [];
       this.lastMapSignature = this.getMapSignature();
       this.log.debug(`[RobotVacuumAdapter] init selectedAreas=${JSON.stringify(this.selectedAreas)} mapSig=${this.lastMapSignature}`);
+    }
+    // Init basic info trackers for firmware/model/manufacturer change detection
+    if (this.lastFirmwareRevision === null && this.context) {
+      this.lastFirmwareRevision = this.context.firmwareRevision || null;
+      this.lastModel = this.context.model || null;
+      this.lastManufacturer = this.context.manufacturerName || null;
     }
 
     // Determine operational state - priority: samsungce operatingState > movement
