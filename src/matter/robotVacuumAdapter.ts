@@ -319,19 +319,38 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
   }
 
   private buildRunModeSupportedModes(): any[] {
-    const modes = this.supportedCleaningModes;
-    if (modes.length === 0) return [];
+    // Recommended: expose only stable, non-area modes to Apple Home.
+    // Area/object cleaning must go via ServiceArea cluster (Matter 1.4), not RunMode.
+    // This prevents Home's "Start" button from sending random area(3)/object(4)/uncleanedObject(6).
+    const ALLOWED_RUN_MODES = ['idle', 'auto', 'spot', 'manual'] as const;
+    let modes: string[];
+    if (this.supportedCleaningModes.length === 0) {
+      // Before device reports capabilities, advertise deterministic minimal set
+      modes = ['idle', 'auto'];
+    } else {
+      // Deterministic order = ALLOWED order, intersection with what device actually supports
+      modes = (ALLOWED_RUN_MODES as readonly string[]).filter(
+        m => m === 'idle' || this.supportedCleaningModes.includes(m),
+      );
+      // Always ensure idle+auto are present for a usable vacuum
+      if (!modes.includes('idle')) modes.unshift('idle');
+      if (!modes.includes('auto')) {
+        // If device doesn't advertise 'auto' but supports cleaning, keep auto as fallback
+        // (Matter requires at least one cleaning mode besides idle)
+        modes.splice(1, 0, 'auto');
+      }
+    }
     const mk = (mode: number, label: string, tags: string[]) => ({
       mode,
       label,
       modeTags: tags.map(v => ({ value: v })),
     });
-    const list = modes.includes('idle') ? [...modes] : ['idle', ...modes];
     const out: any[] = [];
-    for (const m of list) {
-      const e = MatterRvcRunModeMap[m];
+    for (const m of modes) {
+      const e = (MatterRvcRunModeMap as any)[m];
       if (e) out.push(mk(e.mode, e.label, e.tags));
     }
+    this.log.debug(`[RobotVacuumAdapter] buildRunModeSupportedModes: device=${this.supportedCleaningModes.join(',')} -> advertised=${modes.join(',')} modes=${JSON.stringify(out.map(o=>o.mode))}`);
     return out;
   }
 
@@ -600,6 +619,17 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       this.log.warn(`[RobotVacuumAdapter] Supported RunModes: ${this.supportedCleaningModes.join(',')} - trying anyway`);
       return false;
     }
+    // ServiceArea-based modes must not be driven via RunMode (Matter 1.4)
+    const SERVICE_AREA_MODES = ['area', 'object', 'patternMap', 'uncleanedObject', 'map', 'creatingMap', 'pet'];
+    if (SERVICE_AREA_MODES.includes(stMode)) {
+      this.log.warn(`[RobotVacuumAdapter] RunMode ${mode} (${stMode}) is ServiceArea-based — use ServiceArea.selectAreas instead, ignoring RunMode request`);
+      return false;
+    }
+    const ALLOWED_RUN_MODES = ['idle', 'auto', 'spot', 'manual', 'stop'];
+    if (!ALLOWED_RUN_MODES.includes(stMode)) {
+      this.log.warn(`[RobotVacuumAdapter] RunMode ${mode} (${stMode}) not in allowed list ${ALLOWED_RUN_MODES.join(',')}, ignoring`);
+      return false;
+    }
 
     this.log.info(`[RobotVacuumAdapter] setCleaningMode ${stMode} for Matter mode ${mode}`);
     const success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningMode', 'setCleaningMode', [stMode]);
@@ -781,7 +811,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     }
     if (attribute !== 'cleaningMode') return;
     const mode = value as string;
-    const mapped = this.mapCleaningModeToRunMode(mode);
+    const mapped = this.normalizeCleaningModeToRunMode(mode);
     if (mapped === undefined || mapped === this.currentRunMode) return;
     const isRunning = this.currentOperationalState === MatterRvcOperationalState.OperationalState.RUNNING
       || this.currentOperationalState === MatterRvcOperationalState.OperationalState.PAUSED;
@@ -798,7 +828,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     const mode = value as string;
     const mapped = this.mapStandardCleaningModeToMatter(mode);
     if (mapped === undefined) return;
-    const runMapped = this.mapCleaningModeToRunMode(mode);
+    const runMapped = this.normalizeCleaningModeToRunMode(mode);
     if (runMapped !== undefined && runMapped !== this.currentRunMode) {
       const isRunning = this.currentOperationalState === MatterRvcOperationalState.OperationalState.RUNNING
         || this.currentOperationalState === MatterRvcOperationalState.OperationalState.PAUSED;
@@ -997,6 +1027,19 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     return MatterRvcRunModeMap[mode]?.mode;
   }
 
+  private normalizeCleaningModeToRunMode(mode: string): number | undefined {
+    const ALLOWED = new Set(['idle', 'auto', 'spot', 'manual']);
+    if (ALLOWED.has(mode)) {
+      return (MatterRvcRunModeMap as any)[mode]?.mode;
+    }
+    // ServiceArea-based modes should not appear as RunMode; normalize to AUTO for reporting
+    if (['area', 'object', 'patternMap', 'uncleanedObject', 'map', 'creatingMap', 'pet', 'stop'].includes(mode)) {
+      this.log.debug(`[RobotVacuumAdapter] cleaningMode ${mode} is ServiceArea-based -> normalizing RunMode to AUTO`);
+      return MatterRvcRunMode.Type.AUTO;
+    }
+    return (MatterRvcRunModeMap as any)[mode]?.mode;
+  }
+
   private mapCleaningTypeToCleanMode(type: string): number | undefined {
     return this.mapSamsungCleaningTypeToCleanMode(type);
   }
@@ -1085,7 +1128,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     }
 
     if (sCleanModeStatus?.cleaningMode?.value) {
-      const runMapped = this.mapCleaningModeToRunMode(sCleanModeStatus.cleaningMode.value);
+      const runMapped = this.normalizeCleaningModeToRunMode(sCleanModeStatus.cleaningMode.value);
       if (runMapped !== undefined) {
         const isRunning = this.currentOperationalState === MatterRvcOperationalState.OperationalState.RUNNING || this.currentOperationalState === MatterRvcOperationalState.OperationalState.PAUSED;
         if (isRunning) this.currentRunMode = runMapped;
