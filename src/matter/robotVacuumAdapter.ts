@@ -222,26 +222,40 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
 
     try {
       const uuid = this.accessory.UUID;
-
+      const vendorName = this.context.manufacturerName || 'Samsung Electronics';
+      const productName = this.context.label;
+      const model = this.context.model || 'Samsung Robot Vacuum';
+      const serialNumber = this.context.serialNumber || this.context.deviceId;
+      const firmwareRevision = this.context.firmwareRevision || 'Unknown';
       const serviceAreaCluster = this.buildServiceAreaCluster();
 
       await this.matterApi.registerPlatformAccessories('homebridge-smartthings-oauth-custom-hsk', 'HomeBridgeSmartThingsCustomHSK', [{
         UUID: uuid,
-        displayName: this.context.label,
+        displayName: productName,
         deviceType: this.matterApi.deviceTypes.RoboticVacuumCleaner,
-        manufacturer: this.context.manufacturerName || 'Samsung',
-        model: this.context.model || 'SmartThings Robot Vacuum',
-        serialNumber: this.context.serialNumber || this.context.deviceId,
-        firmwareRevision: this.context.firmwareRevision || '1.0',
+        manufacturer: vendorName,
+        model,
+        serialNumber,
+        firmwareRevision,
         clusters: {
           basicInformation: {
-            vendorName: this.context.manufacturerName || 'Samsung',
-            productName: this.context.label,
+            vendorName,
+            productName,
             productId: 0x800A,
             vendorId: 0x10AF, // Samsung vendor
             deviceTypeId: 0x0074, // RVC device type 116
             softwareVersion: 1,
-            softwareVersionString: this.context.firmwareRevision || '1.0',
+            softwareVersionString: firmwareRevision,
+          },
+          bridgedDeviceBasicInformation: {
+            vendorName,
+            productName: model,
+            productLabel: productName,
+            serialNumber,
+            hardwareVersionString: model,
+            softwareVersionString: firmwareRevision,
+            vendorId: 0x10AF,
+            productId: 0x800A,
           },
           onOff: {
             // Read-only: reports SmartThings switch state to Matter, but Matter cannot control it
