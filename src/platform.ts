@@ -748,6 +748,21 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
         status: {},
       });
     }
+    // Ensure HAP AccessoryInformation reflects SmartThings device info (generic, not robot-vacuum specific)
+    const ocf = (device as any).ocf || {};
+    const manufacturer = device.manufacturerName || (device as any).mnmn || ocf.manufacturerName || 'Samsung Electronics';
+    const model = (device as any).modelNumber || device.modelName || ocf.modelNumber || (device as any).vid || (device as any).deviceType || 'SmartThings Device';
+    const serial = device.deviceId;
+    const firmware = device.firmwareVersion || ocf.firmwareVersion || ocf.mnfv || 'Unknown';
+    try {
+      const info = accessory.getService(this.api.hap.Service.AccessoryInformation);
+      if (info) {
+        info.setCharacteristic(this.api.hap.Characteristic.Manufacturer, manufacturer);
+        info.setCharacteristic(this.api.hap.Characteristic.Model, model);
+        info.setCharacteristic(this.api.hap.Characteristic.SerialNumber, serial);
+        info.setCharacteristic(this.api.hap.Characteristic.FirmwareRevision, firmware);
+      }
+    } catch {}
     return acc;
   }
 
