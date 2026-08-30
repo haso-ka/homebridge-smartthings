@@ -2,6 +2,7 @@
 import { API, Logger } from 'homebridge';
 import { MultiServiceAccessory } from '../multiServiceAccessory';
 import type { ShortEvent } from '../webhook/subscriptionHandler';
+import { PLATFORM_NAME, PLUGIN_NAME } from '../settings';
 import { BaseMatterAdapter } from './baseMatterAdapter';
 import {
   MatterAdapter,
@@ -230,7 +231,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       this.log.info(`[MatterRegister] vendorName=${vendorName} model=${model} productName=${productName} serial=${serialNumber} firmware=${firmwareRevision}`);
       const serviceAreaCluster = this.buildServiceAreaCluster();
 
-      await this.matterApi.registerPlatformAccessories('homebridge-smartthings-oauth-custom-hsk', 'HomeBridgeSmartThingsCustomHSK', [{
+      await this.matterApi.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [{
         UUID: uuid,
         displayName: productName,
         deviceType: this.matterApi.deviceTypes.RoboticVacuumCleaner,
@@ -356,7 +357,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     // Area/object cleaning must go via ServiceArea cluster (Matter 1.4), not RunMode.
     // This prevents Home's "Start" button from sending random area(3)/object(4)/uncleanedObject(6).
     // Always ensure idle+auto are present for a usable vacuum
-    let modes: string[] = [...MatterRvcRequiredRunMode];
+    const modes: string[] = [...MatterRvcRequiredRunMode];
     // Deterministic order = ALLOWED order, intersection with what device actually supports
     modes.push(
       ...(MatterRvcOptionalRunMode as readonly string[]).filter(
@@ -738,7 +739,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     const mode = args[0] as number;
     this.log.info(`[RobotVacuumAdapter] handleCleanModeCommand mode=${mode}`);
 
-    let stType = this.mapMatterCleanModeToCleaningType(mode);
+    const stType = this.mapMatterCleanModeToCleaningType(mode);
     if (!stType) {
       this.log.error(`[RobotVacuumAdapter] CleanMode ${mode} not mapped to cleaningType`);
       this.log.warn(`[RobotVacuumAdapter] cleaningType ${stType} not in supported ${this.supportedCleaningTypes.join(',')} - trying anyway`);

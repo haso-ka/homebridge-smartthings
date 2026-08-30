@@ -20,6 +20,7 @@ import {
   hasRefrigeratorOcfDriver,
 } from './util/samsungRefrigerator';
 import { matterRegistry } from './matter';
+import { isMatterDeviceMatchingGroups, MatterDeviceCapabilityGroups } from './matter/matterTypes';
 
 /**
  * HomebridgePlatform
@@ -63,6 +64,29 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
   // Matter support
   private matterEnabled = false;
   private matterAccessoryObjects: Map<string, MultiServiceAccessory> = new Map();
+
+  private static readonly MATTER_DEVICE_LABELS: Record<string, string> = {
+    RoboticVacuumCleaner: 'robot vacuum',
+    Dishwasher: 'dishwasher',
+  };
+
+  private static readonly MATTER_DEVICE_DEFAULT_MODELS: Record<string, string> = {
+    RoboticVacuumCleaner: 'Samsung Robot Vacuum',
+    Dishwasher: 'Samsung Dishwasher',
+  };
+
+  private static getMatterDeviceLabel(type: string): string {
+    return IKHomeBridgeHomebridgePlatform.MATTER_DEVICE_LABELS[type] ?? type;
+  }
+
+  private static getMatterDeviceDefaultModel(type: string): string {
+    return IKHomeBridgeHomebridgePlatform.MATTER_DEVICE_DEFAULT_MODELS[type] ?? 'Samsung Device';
+  }
+
+  private static readonly MATTER_DEVICE_SUBSCRIPTION_CAPS: Record<string, string[]> = {
+    Dishwasher: ['dishwasherOperatingState', 'samsungce.dishwasherOperation', 'samsungce.dishwasherWashingCourse', 'samsungce.dishwasherJobState', 'custom.dishwasherOperatingProgress', 'custom.dishwasherOperatingPercentage', 'samsungce.dishwasherWashingOptions', 'switch'],
+    RoboticVacuumCleaner: ['samsungce.robotCleanerOperatingState', 'samsungce.robotCleanerCleaningMode', 'robotCleanerCleaningMode', 'robotCleanerMovement', 'battery', 'switch'],
+  };
 
   constructor(
     public readonly log: Logger,
@@ -477,35 +501,24 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
     }
   }
 
-  /**
-   * Check if a device is a robot vacuum based on capabilities
-   * Supports both standard and Samsung custom (samsungce.) capabilities
-   */
-  private isRobotVacuumDevice(device: any): boolean {
-    const requiredCapabilities = [
-      'robotCleanerOperatingState',
-      'samsungce.robotCleanerOperatingState',
-    ];
-    const optionalCapabilities = [
-      'robotCleanerCleaningMode',
-      'samsungce.robotCleanerCleaningMode',
-      'robotCleanerTurboMode',
-      'samsungce.robotCleanerTurboMode',
-      'robotCleanerMovement',
-      'samsungce.robotCleanerMovement',
-      'battery',
-      'switch',
-    ];
+  private getDeviceCapabilitySet(device: any): Set<string> {
+    const caps = new Set<string>();
+    for (const comp of device.components) {
+      for (const cap of comp.capabilities) {
+        caps.add(cap.id);
+      }
+    }
+    return caps;
+  }
 
-    const deviceCapabilities = new Set<string>();
-    device.components.forEach((component: any) => {
-      component.capabilities.forEach((cap: any) => deviceCapabilities.add(cap.id));
-    });
-
-    const hasRequired = requiredCapabilities.some(cap => deviceCapabilities.has(cap));
-    const hasOptional = optionalCapabilities.some(cap => deviceCapabilities.has(cap));
-
-    return hasRequired && (hasOptional || deviceCapabilities.has('switch') || deviceCapabilities.has('battery'));
+  private getMatterDeviceType(device: any): string | null {
+    const caps = this.getDeviceCapabilitySet(device);
+    for (const type of Object.keys(MatterDeviceCapabilityGroups)) {
+      if (isMatterDeviceMatchingGroups(caps, type)) {
+        return type;
+      }
+    }
+    return null;
   }
 
   /**
@@ -515,7 +528,7 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
     if (!this.matterEnabled) {
       return false;
     }
-    return this.isRobotVacuumDevice(device);
+    return this.getMatterDeviceType(device) !== null;
   }
 
   /**
@@ -524,11 +537,13 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
    */
   private async initializeMatterAccessories(devices: any[]): Promise<void> {
     for (const device of devices) {
-      if (!this.isRobotVacuumDevice(device)) {
+      const matterDeviceType = this.getMatterDeviceType(device);
+      if (!matterDeviceType) {
         continue;
       }
 
-      this.log.debug(`Found robot vacuum device for Matter: ${device.label} (${device.deviceId})`);
+      const typeLabel = IKHomeBridgeHomebridgePlatform.getMatterDeviceLabel(matterDeviceType);
+      this.log.info(`Found ${typeLabel} device for Matter: ${device.label} (${device.deviceId})`);
 
       const accObj = this.accessoryObjects.find(obj => obj.id === device.deviceId);
       if (!accObj) {
@@ -538,11 +553,12 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
 
       try {
         const ocf = (device as any).ocf || {};
+        const defaultModel = IKHomeBridgeHomebridgePlatform.getMatterDeviceDefaultModel(matterDeviceType);
         const context = {
           deviceId: device.deviceId,
           label: device.label,
           manufacturerName: device.manufacturerName || (device as any).mnmn || ocf.manufacturerName || 'Samsung Electronics',
-          model: (ocf as any).name || (device as any).modelNumber || device.modelName || ocf.modelNumber || (device as any).vid || 'Samsung Robot Vacuum',
+          model: (ocf as any).name || (device as any).modelNumber || device.modelName || ocf.modelNumber || (device as any).vid || defaultModel,
           serialNumber: device.deviceId,
           firmwareRevision: device.firmwareVersion || ocf.firmwareVersion || ocf.mnfv || 'Unknown',
           capabilities: Array.from(
@@ -561,7 +577,7 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
         matterAccessory.context.device = device;
 
         const adapter = await matterRegistry.createAdapter(
-          'RoboticVacuumCleaner',
+          matterDeviceType,
           this.api,
           this.log,
           accObj,
@@ -571,7 +587,7 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
 
         if (adapter) {
           this.matterAccessoryObjects.set(device.deviceId, accObj);
-          this.log.info(`Successfully initialized Matter accessory for ${device.label}`);
+          this.log.info(`Successfully initialized Matter accessory for ${device.label} (${matterDeviceType})`);
         }
       } catch (error) {
         this.log.error(`Failed to initialize Matter accessory for ${device.label}: ${error}`);
@@ -597,7 +613,7 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
 
       // Skip HomeKit registration for devices that will be exposed via Matter
       if (this.isMatterSupportedDevice(device)) {
-        this.log.debug(`Skipping HomeKit registration for ${device.label} - will be exposed via Matter`);
+        this.log.info(`Skipping HomeKit registration for ${device.label} - will be exposed via Matter`);
         // Create minimal MultiServiceAccessory for command sending (NO HAP services)
         // Do NOT call addComponent - that creates HAP services like Switch
         const accessory = new this.api.platformAccessory(device.label, device.deviceId);
@@ -762,7 +778,9 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
         info.setCharacteristic(this.api.hap.Characteristic.SerialNumber, serial);
         info.setCharacteristic(this.api.hap.Characteristic.FirmwareRevision, firmware);
       }
-    } catch {}
+    } catch (error) {
+      this.log.warn('Failed to set accessory info:', error);
+    }
     return acc;
   }
 
@@ -980,6 +998,18 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
       for (const accessory of this.accessoryObjects) {
         for (const capability of accessory.getRegisteredCapabilities()) {
           capabilityCounts.set(capability, (capabilityCounts.get(capability) || 0) + 1);
+        }
+      }
+      // Include Matter-only devices (RVC, Dishwasher) which have no HAP services but still need subscriptions
+      for (const device of devices) {
+        const matterType = this.getMatterDeviceType(device);
+        if (!matterType) continue;
+        const deviceCaps = new Set<string>(device.components.flatMap((c: any) => c.capabilities.map((cap: any) => cap.id as string)));
+        const matterCaps = IKHomeBridgeHomebridgePlatform.MATTER_DEVICE_SUBSCRIPTION_CAPS[matterType] ?? [];
+        for (const cap of matterCaps) {
+          if (deviceCaps.has(cap)) {
+            capabilityCounts.set(cap, (capabilityCounts.get(cap) || 0) + 1);
+          }
         }
       }
 

@@ -44,6 +44,7 @@ export interface MatterAdapterConstructor {
 
 export const MatterClusterNames = {
   OnOff: 'onOff',
+  Identify: 'identify',
   RvcOperationalState: 'rvcOperationalState',
   RvcCleanMode: 'rvcCleanMode',
   RvcRunMode: 'rvcRunMode',
@@ -51,6 +52,9 @@ export const MatterClusterNames = {
   PowerSource: 'powerSource',
   BasicInformation: 'basicInformation',
   BridgedDeviceBasicInformation: 'bridgedDeviceBasicInformation',
+  OperationalState: 'operationalState',
+  DishwasherMode: 'dishwasherMode',
+  DishwasherAlarm: 'dishwasherAlarm',
 } as const;
 
 export const MatterRvcOperationalState = {
@@ -178,3 +182,139 @@ export const MatterPowerSource = {
     FACTORY_REPLACEABLE: 2,
   },
 } as const;
+
+export const MatterOperationalState = {
+  OperationalState: {
+    STOPPED: 0,
+    RUNNING: 1,
+    PAUSED: 2,
+    ERROR: 3,
+  },
+  OperationalError: {
+    NO_ERROR: 0,
+    UNABLE_TO_START_OR_RESUME: 1,
+    UNABLE_TO_COMPLETE_OPERATION: 2,
+    COMMAND_INVALID_IN_STATE: 3,
+  },
+} as const;
+
+export const MatterDishwasherMode = {
+  Tag: {
+    NORMAL: 16384,
+    HEAVY: 16385,
+    LIGHT: 16386,
+  },
+} as const;
+
+export const MatterDishwasherAlarm = {
+  State: {
+    SUPPRESS_ALL: 0,
+  },
+  Mask: {
+    INFLOW_ERROR: 1 << 0,
+    DRAIN_ERROR: 1 << 1,
+    DOOR_ERROR: 1 << 2,
+    TEMP_TOO_LOW: 1 << 3,
+    TEMP_TOO_HIGH: 1 << 4,
+    WATER_LEVEL_ERROR: 1 << 5,
+  },
+  Supported: {
+    NONE: 0,
+  },
+} as const;
+
+export const DishwasherCourseTagMap: Record<string, number> = {
+  AI: MatterDishwasherMode.Tag.NORMAL,
+  normal: MatterDishwasherMode.Tag.NORMAL,
+  eco_10: MatterDishwasherMode.Tag.LIGHT,
+  eco: MatterDishwasherMode.Tag.LIGHT,
+  intensive: MatterDishwasherMode.Tag.HEAVY,
+  steamSoak: MatterDishwasherMode.Tag.HEAVY,
+  nightSilence: MatterDishwasherMode.Tag.NORMAL,
+  upperExpress: MatterDishwasherMode.Tag.LIGHT,
+  babyBottle: MatterDishwasherMode.Tag.HEAVY,
+  selfSanitize: MatterDishwasherMode.Tag.HEAVY,
+  glasses: MatterDishwasherMode.Tag.LIGHT,
+  plastics: MatterDishwasherMode.Tag.LIGHT,
+  rinseDry: MatterDishwasherMode.Tag.LIGHT,
+  dryOnly: MatterDishwasherMode.Tag.LIGHT,
+  coldRinse: MatterDishwasherMode.Tag.LIGHT,
+  drinkware: MatterDishwasherMode.Tag.LIGHT,
+  auto: MatterDishwasherMode.Tag.NORMAL,
+  delicate: MatterDishwasherMode.Tag.LIGHT,
+  express: MatterDishwasherMode.Tag.LIGHT,
+  preWash: MatterDishwasherMode.Tag.LIGHT,
+  selfClean: MatterDishwasherMode.Tag.HEAVY,
+  extraSilence: MatterDishwasherMode.Tag.LIGHT,
+  rinseOnly: MatterDishwasherMode.Tag.LIGHT,
+  potsAndPans: MatterDishwasherMode.Tag.HEAVY,
+  babycare: MatterDishwasherMode.Tag.HEAVY,
+  quick: MatterDishwasherMode.Tag.LIGHT,
+  heavy: MatterDishwasherMode.Tag.HEAVY,
+  daily: MatterDishwasherMode.Tag.NORMAL,
+  chef: MatterDishwasherMode.Tag.HEAVY,
+  preBlast: MatterDishwasherMode.Tag.HEAVY,
+  machineCare: MatterDishwasherMode.Tag.NORMAL,
+  night: MatterDishwasherMode.Tag.LIGHT,
+  quick_14: MatterDishwasherMode.Tag.LIGHT,
+  express_0C: MatterDishwasherMode.Tag.LIGHT,
+  daily_09: MatterDishwasherMode.Tag.NORMAL,
+  eco_08: MatterDishwasherMode.Tag.LIGHT,
+} as const;
+
+export const MatterDeviceCapabilityGroups: Record<string, string[][]> = {
+  RoboticVacuumCleaner: [
+    ['samsungce.robotCleanerOperatingState', 'robotCleanerOperatingState'],
+    ['samsungce.robotCleanerCleaningMode', 'robotCleanerCleaningMode', 'robotCleanerMovement', 'samsungce.robotCleanerMovement', 'samsungce.robotCleanerCleaningType'],
+    ['battery', 'switch'],
+  ],
+  Dishwasher: [
+    ['dishwasherOperatingState', 'samsungce.dishwasherOperation'],
+    ['samsungce.dishwasherWashingCourse'],
+    ['samsungce.dishwasherJobState', 'custom.dishwasherOperatingProgress', 'custom.dishwasherOperatingPercentage', 'dishwasherOperatingState'],
+    ['switch'],
+  ],
+};
+
+export function isMatterDeviceMatchingGroups(deviceCaps: Set<string>, deviceType: string): boolean {
+  const groups = MatterDeviceCapabilityGroups[deviceType];
+  if (!groups) return false;
+  return groups.every(group => group.some(cap => deviceCaps.has(cap)));
+}
+
+export const MatterDeviceRelevantCapabilities: Record<string, { exact: Set<string>; prefixes: string[] }> = {
+  RoboticVacuumCleaner: {
+    exact: new Set([
+      'robotCleanerMovement',
+      'robotCleanerTurboMode',
+      'battery',
+      'switch',
+      'audioNotification',
+      'audioVolume',
+      'audioMute',
+    ]),
+    prefixes: ['samsungce.robotCleaner'],
+  },
+  Dishwasher: {
+    exact: new Set([
+      'dishwasherOperatingState',
+      'switch',
+      'samsungce.kidsLock',
+      'remoteControlStatus',
+      'custom.dishwasherOperatingProgress',
+      'custom.dishwasherOperatingPercentage',
+      'custom.dishwasherDelayStartTime',
+      'execute',
+      'powerConsumptionReport',
+      'samsungce.waterConsumptionReport',
+    ]),
+    prefixes: ['samsungce.dishwasher', 'custom.dishwasher'],
+  },
+};
+
+export function isMatterRelevantCapability(deviceType: string, capabilityId: string): boolean {
+  const rel = MatterDeviceRelevantCapabilities[deviceType];
+  if (!rel) return false;
+  if (rel.exact.has(capabilityId)) return true;
+  return rel.prefixes.some(prefix => capabilityId.startsWith(prefix));
+}

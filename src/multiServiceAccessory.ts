@@ -269,8 +269,10 @@ export class MultiServiceAccessory {
     this.axInstance = platform.axInstance;
 
     // Check if this device is a configured Frame TV
-    const frameTvDevices: Array<{ deviceName: string; ip: string; enableFullPowerOff?: boolean; enableArtModeSwitch?: boolean;
-      infoButtonKey?: string; token?: string; }>
+    const frameTvDevices: Array<{
+      deviceName: string; ip: string; enableFullPowerOff?: boolean; enableArtModeSwitch?: boolean;
+      infoButtonKey?: string; token?: string;
+    }>
       = platform.config.frameTvDevices || [];
     const matchedFrameTv = frameTvDevices.find(
       ftv => ftv.deviceName && ftv.deviceName.toLowerCase().trim() === this.name.toLowerCase().trim(),
@@ -352,8 +354,8 @@ export class MultiServiceAccessory {
     // standard temperatureMeasurement).
     let resolvedConstructor = serviceConstructor;
     if (serviceConstructor === TemperatureService
-        && this.platform.config.ExposeMultiZoneRefrigerator === true
-        && this.mainHasCapability('samsungce.driverState')) {
+      && this.platform.config.ExposeMultiZoneRefrigerator === true
+      && this.mainHasCapability('samsungce.driverState')) {
       resolvedConstructor = RefrigeratorTemperatureService;
     }
 
@@ -419,47 +421,47 @@ export class MultiServiceAccessory {
           }
         }
 
-                     // Remove TV capabilities from the list to avoid duplicate services
-             capabilitiesToCover = capabilitiesToCover.filter(cap => !tvCapabilities.includes(cap));
+        // Remove TV capabilities from the list to avoid duplicate services
+        capabilitiesToCover = capabilitiesToCover.filter(cap => !tvCapabilities.includes(cap));
 
-             // If configured to remove legacy switch, remove the 'switch' capability
-             if (removeLegacySwitch && tvCapabilities.includes('switch')) {
-               this.log.debug(`Removing legacy switch service for TV: ${this.name}`);
-               // 'switch' capability is already removed from capabilitiesToCover above
-             } else if (tvCapabilities.includes('switch')) {
-               // Keep the switch capability for legacy compatibility
-               capabilitiesToCover.push('switch');
-               this.log.debug(`Keeping legacy switch service alongside Television service for: ${this.name}`);
-             }
+        // If configured to remove legacy switch, remove the 'switch' capability
+        if (removeLegacySwitch && tvCapabilities.includes('switch')) {
+          this.log.debug(`Removing legacy switch service for TV: ${this.name}`);
+          // 'switch' capability is already removed from capabilitiesToCover above
+        } else if (tvCapabilities.includes('switch')) {
+          // Keep the switch capability for legacy compatibility
+          capabilitiesToCover.push('switch');
+          this.log.debug(`Keeping legacy switch service alongside Television service for: ${this.name}`);
+        }
 
-             // Add volume slider as lightbulb service to the SAME TV accessory (same tile in HomeKit)
-             // CRITICAL: Only create for main TV component with volume capabilities
-             const registerVolumeSlider = this.platform.config.registerVolumeSlider === true;
-             if (registerVolumeSlider && componentId === 'main' && VolumeSliderService.supportsVolumeSlider(capabilities)) {
-               this.log.debug(`Creating volume slider service within TV accessory for main component: ${this.name}`);
-               const volumeSliderCapabilities = VolumeSliderService.getVolumeSliderCapabilities().filter(cap => capabilities.includes(cap));
+        // Add volume slider as lightbulb service to the SAME TV accessory (same tile in HomeKit)
+        // CRITICAL: Only create for main TV component with volume capabilities
+        const registerVolumeSlider = this.platform.config.registerVolumeSlider === true;
+        if (registerVolumeSlider && componentId === 'main' && VolumeSliderService.supportsVolumeSlider(capabilities)) {
+          this.log.debug(`Creating volume slider service within TV accessory for main component: ${this.name}`);
+          const volumeSliderCapabilities = VolumeSliderService.getVolumeSliderCapabilities().filter(cap => capabilities.includes(cap));
 
-               if (volumeSliderCapabilities.length > 0) {
-                 const volumeSliderService = new VolumeSliderService(
-                   this.platform,
-                   this.accessory,
-                   componentId, // 'main' component for TV
-                   volumeSliderCapabilities,
-                   this,
-                   this.name,
-                   component,
-                 );
-                 this.services.push(volumeSliderService);
+          if (volumeSliderCapabilities.length > 0) {
+            const volumeSliderService = new VolumeSliderService(
+              this.platform,
+              this.accessory,
+              componentId, // 'main' component for TV
+              volumeSliderCapabilities,
+              this,
+              this.name,
+              component,
+            );
+            this.services.push(volumeSliderService);
 
-                 // Remove volume capabilities from other services to avoid conflicts
-                 capabilitiesToCover = capabilitiesToCover.filter(cap => !volumeSliderCapabilities.includes(cap));
-                 this.log.info(`📱 Volume slider service added to ${this.name} TV tile - volume controls now visible in Home app`);
-               }
-             }
+            // Remove volume capabilities from other services to avoid conflicts
+            capabilitiesToCover = capabilitiesToCover.filter(cap => !volumeSliderCapabilities.includes(cap));
+            this.log.info(`📱 Volume slider service added to ${this.name} TV tile - volume controls now visible in Home app`);
+          }
+        }
 
 
-           }
-         }
+      }
+    }
 
     // Start with comboServices and remove used capabilities to avoid duplicated sensors.
     // For example, there is no need to expose a temperature sensor in case of a thermostat which already exposes that charateristic.
@@ -590,52 +592,7 @@ export class MultiServiceAccessory {
             // Notify TelevisionService about global status update for input source monitoring
             this.notifyTelevisionServiceOfStatusUpdate();
 
-            // Notify Matter adapters about polled status changes (for Robot Vacuum RVC)
-            try {
-              const { matterRegistry } = require('./matter');
-              for (const comp of this.components) {
-                if (comp.componentId !== 'main') {
-                  continue;
-                }
-                const status = comp.status as Record<string, any>;
-                if (!status) {
-                  continue;
-                }
-                for (const capId of Object.keys(status)) {
-                  if (
-                    !capId.startsWith('samsungce.robotCleaner') &&
-                    capId !== 'robotCleanerMovement' &&
-                    capId !== 'robotCleanerTurboMode' &&
-                    capId !== 'battery' &&
-                    capId !== 'switch'
-                  ) {
-                    continue;
-                  }
-                  const capAttrs = status[capId];
-                  if (!capAttrs || typeof capAttrs !== 'object') {
-                    continue;
-                  }
-                  for (const attr of Object.keys(capAttrs)) {
-                    const attrObj: any = (capAttrs as any)[attr];
-                    if (attrObj && typeof attrObj === 'object' && 'value' in attrObj) {
-                      if (attrObj.value === null) {
-                        continue;
-                      }
-                      const event = {
-                        deviceId: this.accessory.context.device.deviceId,
-                        componentId: comp.componentId,
-                        capability: capId,
-                        attribute: attr,
-                        value: attrObj.value,
-                      };
-                      matterRegistry.processEvent(this.accessory.context.device.deviceId, event);
-                    }
-                  }
-                }
-              }
-            } catch (e) {
-              this.log.debug(`Matter poll notify failed: ${e}`);
-            }
+            this.notifyMatterAdaptersOfPoll();
 
             this.hasInitialStatus = true;
             this.statusQueryInProgress = false;
@@ -678,6 +635,71 @@ export class MultiServiceAccessory {
 
   public hasCachedStatus(): boolean {
     return this.hasInitialStatus;
+  }
+
+  private getDeviceCapabilitySet(): Set<string> {
+    const caps = new Set<string>();
+    for (const comp of this.components) {
+      for (const cap of comp.capabilities) {
+        caps.add(cap);
+      }
+    }
+    return caps;
+  }
+
+  private getMatterDeviceType(): string | null {
+    const caps = this.getDeviceCapabilitySet();
+    const { isMatterDeviceMatchingGroups, MatterDeviceCapabilityGroups } = require('./matter/matterTypes');
+    for (const type of Object.keys(MatterDeviceCapabilityGroups)) {
+      if (isMatterDeviceMatchingGroups(caps, type)) {
+        return type;
+      }
+    }
+    return null;
+  }
+
+  private notifyMatterAdaptersOfPoll(): void {
+    const deviceType = this.getMatterDeviceType();
+    if (!deviceType) {
+      return;
+    }
+    try {
+      const { matterRegistry, isMatterRelevantCapability } = require('./matter');
+      for (const comp of this.components) {
+        if (comp.componentId !== 'main') {
+          continue;
+        }
+        const status = comp.status as Record<string, any>;
+        if (!status) {
+          continue;
+        }
+        for (const capId of Object.keys(status)) {
+          if (!isMatterRelevantCapability(deviceType, capId)) {
+            continue;
+          }
+          const capAttrs = status[capId];
+          if (!capAttrs || typeof capAttrs !== 'object') {
+            continue;
+          }
+          for (const attr of Object.keys(capAttrs)) {
+            const attrObj: any = (capAttrs as any)[attr];
+            if (!attrObj || typeof attrObj !== 'object' || !('value' in attrObj) || attrObj.value === null) {
+              continue;
+            }
+            const event = {
+              deviceId: this.accessory.context.device.deviceId,
+              componentId: comp.componentId,
+              capability: capId,
+              attribute: attr,
+              value: attrObj.value,
+            };
+            matterRegistry.processEvent(this.accessory.context.device.deviceId, event);
+          }
+        }
+      }
+    } catch (e) {
+      this.log.error(`Matter poll notify failed: ${e}`);
+    }
   }
 
   /**
