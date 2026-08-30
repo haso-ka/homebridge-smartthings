@@ -542,7 +542,7 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
           deviceId: device.deviceId,
           label: device.label,
           manufacturerName: device.manufacturerName || (device as any).mnmn || ocf.manufacturerName || 'Samsung Electronics',
-          model: (device as any).modelNumber || device.modelName || ocf.modelNumber || (device as any).vid || 'Samsung Robot Vacuum',
+          model: (ocf as any).name || (device as any).modelNumber || device.modelName || ocf.modelNumber || (device as any).vid || 'Samsung Robot Vacuum',
           serialNumber: device.deviceId,
           firmwareRevision: device.firmwareVersion || ocf.firmwareVersion || ocf.mnfv || 'Unknown',
           capabilities: Array.from(
