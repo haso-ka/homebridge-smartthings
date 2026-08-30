@@ -528,15 +528,33 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       this.context.firmwareRevision = firmware;
       this.context.serialNumber = serial;
 
-      await this.matterApi.updateAccessoryState(this.accessory.UUID, MatterClusterNames.BasicInformation, {
+      // Matter bridged devices expose info via BridgedDeviceBasicInformation (0x0039), not BasicInformation (bridge itself)
+      const basicInfoPayload: any = {
         vendorName: manufacturer,
         productName: this.context.label,
-        productId: 0x800A,
-        vendorId: 0x10AF,
         serialNumber: serial,
         softwareVersionString: firmware,
-      });
-      this.log.info(`[RobotVacuumAdapter] BasicInformation synced to Matter`);
+        hardwareVersionString: firmware,
+      };
+      // Try BridgedDeviceBasicInformation first (correct for RVC), fallback to BasicInformation
+      let updated = false;
+      try {
+        await this.matterApi.updateAccessoryState(this.accessory.UUID, MatterClusterNames.BridgedDeviceBasicInformation, basicInfoPayload);
+        updated = true;
+      } catch (e) {
+        this.log.warn(`[RobotVacuumAdapter] BridgedDeviceBasicInformation update failed, trying BasicInformation: ${e}`);
+      }
+      if (!updated) {
+        await this.matterApi.updateAccessoryState(this.accessory.UUID, MatterClusterNames.BasicInformation, {
+          vendorName: manufacturer,
+          productName: this.context.label,
+          productId: 0x800A,
+          vendorId: 0x10AF,
+          serialNumber: serial,
+          softwareVersionString: firmware,
+        });
+      }
+      this.log.info(`[RobotVacuumAdapter] BasicInformation synced to Matter (firmware ${firmware})`);
     } catch (e) {
       this.log.debug(`[RobotVacuumAdapter] syncBasicInformation failed: ${e}`);
     }

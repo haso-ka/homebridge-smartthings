@@ -50,6 +50,7 @@ export const MatterClusterNames = {
   ServiceArea: 'serviceArea',
   PowerSource: 'powerSource',
   BasicInformation: 'basicInformation',
+  BridgedDeviceBasicInformation: 'bridgedDeviceBasicInformation',
 } as const;
 
 export const MatterRvcOperationalState = {
