@@ -630,6 +630,31 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     return { mapId: firstMapId, areaIds };
   }
 
+  // Helpers to reduce sendSmartThingsCommand duplication
+  private async setCleaningMode(mode: string, extra?: Record<string, unknown>): Promise<boolean> {
+    const args = extra ? [mode, extra] : [mode];
+    this.log.info(`[RobotVacuumAdapter] setCleaningMode ${mode} ${extra ? JSON.stringify(extra) : ''}`);
+    return this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningMode', 'setCleaningMode', args);
+  }
+
+  private async setCleaningType(type: string): Promise<boolean> {
+    return this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningType', 'setCleaningType', [type]);
+  }
+
+  private async setRobotMovement(movement: 'cleaning' | 'homing' | 'pause'): Promise<boolean> {
+    return this.sendSmartThingsCommand('main', 'robotCleanerMovement', 'setRobotCleanerMovement', [movement]);
+  }
+
+  private async startAreaCleaning(payload: { mapId: string; areaIds: string[] }): Promise<boolean> {
+    const modeOk = await this.setCleaningMode('area', payload);
+    if (!modeOk) {
+      this.log.error(`[RobotVacuumAdapter] setCleaningMode area failed`);
+      return false;
+    }
+    await new Promise(r => setTimeout(r, 500));
+    return this.setRobotMovement('cleaning');
+  }
+
   private async handleOperationalStateCommand(command: string): Promise<boolean> {
     this.log.info(`[RobotVacuumAdapter] handleOperationalStateCommand: ${command} selectedAreas=${JSON.stringify(this.selectedAreas)}`);
     let success = false;
@@ -640,29 +665,20 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       case 'resume': {
         const areaPayload = this.getSelectedAreaPayload();
         if (areaPayload) {
-          this.log.info(`[RobotVacuumAdapter] start/resume with selectedAreas -> setCleaningMode area ${JSON.stringify(areaPayload)} + movement`);
-          const modeOk = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningMode', 'setCleaningMode', ['area', areaPayload]);
-          if (!modeOk) {
-            this.log.error(`[RobotVacuumAdapter] setCleaningMode area failed`);
-            success = false;
-          } else {
-            // Small delay to let mode settle, then trigger actual cleaning
-            await new Promise(r => setTimeout(r, 500));
-            success = await this.sendSmartThingsCommand('main', 'robotCleanerMovement', 'setRobotCleanerMovement', ['cleaning']);
-          }
+          success = await this.startAreaCleaning(areaPayload);
         } else {
-          success = await this.sendSmartThingsCommand('main', 'robotCleanerMovement', 'setRobotCleanerMovement', ['cleaning']);
+          success = await this.setRobotMovement('cleaning');
         }
         state = MatterRvcOperationalState.OperationalState.RUNNING;
         break;
       }
       case 'goHome':
-        success = await this.sendSmartThingsCommand('main', 'robotCleanerMovement', 'setRobotCleanerMovement', ['homing']);
+        success = await this.setRobotMovement('homing');
         state = MatterRvcOperationalState.OperationalState.SEEKING_CHARGER;
         break;
       case 'pause':
       case 'stop':
-        success = await this.sendSmartThingsCommand('main', 'robotCleanerMovement', 'setRobotCleanerMovement', ['pause']);
+        success = await this.setRobotMovement('pause');
         state = MatterRvcOperationalState.OperationalState.PAUSED;
         break;
       default:
@@ -719,7 +735,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       return false;
     }
 
-    const success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningType', 'setCleaningType', [stType]);
+    const success = await this.setCleaningType(stType);
     if (success) {
       this.currentCleanMode = mode;
       this.matterApi?.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.RvcCleanMode, { currentMode: mode });
@@ -745,16 +761,9 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     let success = false;
     const areaPayload = this.getSelectedAreaPayload();
     if (areaPayload && stMode !== 'stop' && stMode !== 'idle') {
-      this.log.info(`[RobotVacuumAdapter] RunMode change with selectedAreas -> setCleaningMode area ${JSON.stringify(areaPayload)} + movement`);
-      const modeOk = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningMode', 'setCleaningMode', ['area', areaPayload]);
-      if (!modeOk) {
-        success = false;
-      } else {
-        await new Promise(r => setTimeout(r, 500));
-        success = await this.sendSmartThingsCommand('main', 'robotCleanerMovement', 'setRobotCleanerMovement', ['cleaning']);
-      }
+      success = await this.startAreaCleaning(areaPayload);
     } else {
-      success = await this.sendSmartThingsCommand('main', 'samsungce.robotCleanerCleaningMode', 'setCleaningMode', [stMode]);
+      success = await this.setCleaningMode(stMode);
     }
     if (success) {
       this.currentRunMode = mode;
