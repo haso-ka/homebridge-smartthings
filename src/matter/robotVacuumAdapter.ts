@@ -533,18 +533,22 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       this.context.firmwareRevision = firmware;
       this.context.serialNumber = serial;
 
-      // RVC is registered as standalone Matter device, BasicInformation is on endpoint 0
-      await this.matterApi.updateAccessoryState(this.accessory.UUID, MatterClusterNames.BasicInformation, {
-        vendorName: manufacturer,
-        productName: this.context.label,
-        productId: 0x800A,
-        vendorId: 0x10AF,
-        serialNumber: serial,
-        softwareVersionString: firmware,
-      });
-      this.log.info(`[RobotVacuumAdapter] BasicInformation synced to Matter (firmware ${firmware})`);
+      // Use updatePlatformAccessories to refresh cached BasicInformation for Matter (Apple Home may still cache until re-pair)
+      try {
+        await this.matterApi.updatePlatformAccessories([{
+          UUID: this.accessory.UUID,
+          displayName: this.context.label,
+          manufacturer,
+          model,
+          serialNumber: serial,
+          firmwareRevision: firmware,
+        } as any]);
+        this.log.info(`[RobotVacuumAdapter] BasicInformation synced via updatePlatformAccessories (firmware ${firmware})`);
+      } catch (e) {
+        this.log.warn(`[RobotVacuumAdapter] updatePlatformAccessories failed: ${e}`);
+      }
     } catch (e) {
-      this.log.debug(`[RobotVacuumAdapter] syncBasicInformation failed: ${e}`);
+      this.log.warn(`[RobotVacuumAdapter] syncBasicInformation failed: ${e}`);
     }
   }
 
