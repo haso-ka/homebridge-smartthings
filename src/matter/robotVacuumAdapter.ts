@@ -227,6 +227,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
       const model = this.context.model || 'Samsung Robot Vacuum';
       const serialNumber = this.context.serialNumber || this.context.deviceId;
       const firmwareRevision = this.context.firmwareRevision || 'Unknown';
+      this.log.info(`[MatterRegister] vendorName=${vendorName} model=${model} productName=${productName} serial=${serialNumber} firmware=${firmwareRevision}`);
       const serviceAreaCluster = this.buildServiceAreaCluster();
 
       await this.matterApi.registerPlatformAccessories('homebridge-smartthings-oauth-custom-hsk', 'HomeBridgeSmartThingsCustomHSK', [{
