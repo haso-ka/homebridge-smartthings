@@ -265,13 +265,22 @@ export class WasherService extends BaseService {
   }
 
   private jobStateToInUse(jobState: string): number {
-    switch (jobState) {
+    if (!jobState || typeof jobState !== 'string') {
+      return this.platform.Characteristic.InUse.NOT_IN_USE;
+    }
+    switch (jobState.toLowerCase()) {
     case 'wash':
     case 'rinse':
     case 'spin':
-    case 'weightSensing':
-    case 'wrinklePrevent':
+    case 'weightsensing':
+    case 'wrinkleprevent':
     case 'drying':
+    case 'airwash':
+    case 'airinse':
+    case 'aispin':
+    case 'aiwash':
+    case 'cooling':
+    case 'prewash':
       return this.platform.Characteristic.InUse.IN_USE;
     default:
       return this.platform.Characteristic.InUse.NOT_IN_USE;
