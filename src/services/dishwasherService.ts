@@ -265,16 +265,19 @@ export class DishwasherService extends BaseService {
   }
 
   private jobStateToInUse(jobState: string): number {
-    switch (jobState) {
+    if (!jobState || typeof jobState !== 'string') {
+      return this.platform.Characteristic.InUse.NOT_IN_USE;
+    }
+    switch (jobState.toLowerCase()) {
     case 'airwash':
     case 'cooling':
     case 'drying':
-    case 'preDrain':
+    case 'predrain':
     case 'prewash':
     case 'rinse':
     case 'spin':
     case 'wash':
-    case 'wrinklePrevent':
+    case 'wrinkleprevent':
       return this.platform.Characteristic.InUse.IN_USE;
     default:
       return this.platform.Characteristic.InUse.NOT_IN_USE;

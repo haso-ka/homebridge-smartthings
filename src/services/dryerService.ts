@@ -265,16 +265,21 @@ export class DryerService extends BaseService {
   }
 
   private jobStateToInUse(jobState: string): number {
-    switch (jobState) {
+    if (!jobState || typeof jobState !== 'string') {
+      return this.platform.Characteristic.InUse.NOT_IN_USE;
+    }
+    switch (jobState.toLowerCase()) {
     case 'cooling':
     case 'drying':
     case 'refreshing':
-    case 'weightSensing':
-    case 'wrinklePrevent':
+    case 'weightsensing':
+    case 'wrinkleprevent':
     case 'dehumidifying':
-    case 'aiDrying':
+    case 'aidrying':
     case 'sanitizing':
-    case 'internalCare':
+    case 'internalcare':
+    case 'continuousdehumidifying':
+    case 'thawingfrozeninside':
       return this.platform.Characteristic.InUse.IN_USE;
     default:
       return this.platform.Characteristic.InUse.NOT_IN_USE;
