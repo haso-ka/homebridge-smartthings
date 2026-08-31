@@ -224,7 +224,7 @@ export class RobotVacuumAdapter extends BaseMatterAdapter implements MatterAdapt
     try {
       const uuid = this.accessory.UUID;
       const vendorName = this.context.manufacturerName || 'Samsung Electronics';
-      const productName = this.context.label;
+      const productName = this.context.model || this.context.label;
       const model = this.context.model || 'Samsung Robot Vacuum';
       const serialNumber = this.context.serialNumber || this.context.deviceId;
       const firmwareRevision = this.context.firmwareRevision || 'Unknown';
