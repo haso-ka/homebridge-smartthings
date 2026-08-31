@@ -528,7 +528,22 @@ export class IKHomeBridgeHomebridgePlatform implements DynamicPlatformPlugin {
     if (!this.matterEnabled) {
       return false;
     }
-    return this.getMatterDeviceType(device) !== null;
+    const type = this.getMatterDeviceType(device);
+    if (!type) return false;
+    const matterApi: any = (this.api as any).matter;
+    if (matterApi?.deviceTypes && !matterApi.deviceTypes[type]) {
+      this.log.info(`Matter device type ${type} not supported in this Homebridge version, falling back to HAP`);
+      return false;
+    }
+    if (type === 'Dishwasher' && matterApi?.clusterNames) {
+      const requiredClusters = ['operationalState', 'dishwasherMode', 'dishwasherAlarm'];
+      const missing = requiredClusters.filter(c => !(c in matterApi.clusterNames));
+      if (missing.length > 0) {
+        this.log.info(`Matter Dishwasher clusters not yet supported in Homebridge (${missing.join(', ')}), falling back to HAP Valve`);
+        return false;
+      }
+    }
+    return true;
   }
 
   /**

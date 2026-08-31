@@ -106,9 +106,23 @@ export class DishwasherAdapter extends BaseMatterAdapter implements MatterAdapte
     return this.getDeviceStatus() as Record<string, any>;
   }
 
+  private isClusterSupported(cluster: string): boolean {
+    return !!this.matterApi?.clusterNames?.[cluster];
+  }
+
   protected async setupMatterAccessory(): Promise<void> {
     if (!this.matterApi || !this.accessory || !this.context) {
       this.log.warn('[DishwasherAdapter] Matter API not available or accessory not initialized');
+      return;
+    }
+    const requiredClusters = ['operationalState', 'dishwasherMode', 'dishwasherAlarm'];
+    const missingClusters = requiredClusters.filter(c => !this.matterApi.clusterNames?.[c]);
+    if (missingClusters.length > 0) {
+      this.log.warn(`[DishwasherAdapter] Homebridge Matter API does not yet support clusters [${missingClusters.join(', ')}], skipping Matter registration (will use HAP Valve)`);
+      return;
+    }
+    if (!this.matterApi.deviceTypes?.Dishwasher) {
+      this.log.warn('[DishwasherAdapter] Homebridge Matter API does not yet support Dishwasher device type, skipping Matter registration');
       return;
     }
 
@@ -257,10 +271,16 @@ export class DishwasherAdapter extends BaseMatterAdapter implements MatterAdapte
   private async updateMatterClustersAfterRegistration(): Promise<void> {
     if (!this.matterApi || !this.context) return;
     try {
-      const op = this.buildOperationalStateCluster();
-      await this.matterApi.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.OperationalState, op);
-      await this.matterApi.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.DishwasherMode, this.buildDishwasherModeCluster());
-      await this.matterApi.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.OnOff, { onOff: this.currentSwitchOn });
+      if (this.isClusterSupported(MatterClusterNames.OperationalState)) {
+        const op = this.buildOperationalStateCluster();
+        await this.matterApi.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.OperationalState, op);
+      }
+      if (this.isClusterSupported(MatterClusterNames.DishwasherMode)) {
+        await this.matterApi.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.DishwasherMode, this.buildDishwasherModeCluster());
+      }
+      if (this.isClusterSupported(MatterClusterNames.OnOff)) {
+        await this.matterApi.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.OnOff, { onOff: this.currentSwitchOn });
+      }
       this.log.debug('[DishwasherAdapter] Updated Matter cluster states after registration');
     } catch (error) {
       this.log.error(`[DishwasherAdapter] Failed to update Matter cluster states: ${error}`);
@@ -269,9 +289,13 @@ export class DishwasherAdapter extends BaseMatterAdapter implements MatterAdapte
 
   private pushOperationalStateUpdate(): void {
     if (!this.matterApi || !this.context) return;
-    const op = this.buildOperationalStateCluster();
-    this.matterApi.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.OperationalState, op);
-    this.matterApi.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.OnOff, { onOff: this.currentSwitchOn });
+    if (this.isClusterSupported(MatterClusterNames.OperationalState)) {
+      const op = this.buildOperationalStateCluster();
+      this.matterApi.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.OperationalState, op);
+    }
+    if (this.isClusterSupported(MatterClusterNames.OnOff)) {
+      this.matterApi.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.OnOff, { onOff: this.currentSwitchOn });
+    }
   }
 
   protected async handleMatterCommand(command: NormalizedMatterCommand): Promise<boolean> {
@@ -407,10 +431,10 @@ export class DishwasherAdapter extends BaseMatterAdapter implements MatterAdapte
   protected pushStateToMatter(state: NormalizedMatterState): void {
     if (!this.matterApi || !this.context) return;
     const uuid = this.accessory!.UUID;
-    if (state[MatterClusterNames.OnOff]) this.matterApi.updateAccessoryState(uuid, MatterClusterNames.OnOff, state[MatterClusterNames.OnOff]);
-    if (state[MatterClusterNames.OperationalState]) this.matterApi.updateAccessoryState(uuid, MatterClusterNames.OperationalState, state[MatterClusterNames.OperationalState]);
-    if (state[MatterClusterNames.DishwasherMode]) this.matterApi.updateAccessoryState(uuid, MatterClusterNames.DishwasherMode, state[MatterClusterNames.DishwasherMode]);
-    if (state[MatterClusterNames.DishwasherAlarm]) this.matterApi.updateAccessoryState(uuid, MatterClusterNames.DishwasherAlarm, state[MatterClusterNames.DishwasherAlarm]);
+    if (state[MatterClusterNames.OnOff] && this.isClusterSupported(MatterClusterNames.OnOff)) this.matterApi.updateAccessoryState(uuid, MatterClusterNames.OnOff, state[MatterClusterNames.OnOff]);
+    if (state[MatterClusterNames.OperationalState] && this.isClusterSupported(MatterClusterNames.OperationalState)) this.matterApi.updateAccessoryState(uuid, MatterClusterNames.OperationalState, state[MatterClusterNames.OperationalState]);
+    if (state[MatterClusterNames.DishwasherMode] && this.isClusterSupported(MatterClusterNames.DishwasherMode)) this.matterApi.updateAccessoryState(uuid, MatterClusterNames.DishwasherMode, state[MatterClusterNames.DishwasherMode]);
+    if (state[MatterClusterNames.DishwasherAlarm] && this.isClusterSupported(MatterClusterNames.DishwasherAlarm)) this.matterApi.updateAccessoryState(uuid, MatterClusterNames.DishwasherAlarm, state[MatterClusterNames.DishwasherAlarm]);
   }
 
   protected handleSmartThingsEvent(event: ShortEvent): void {
@@ -504,7 +528,9 @@ export class DishwasherAdapter extends BaseMatterAdapter implements MatterAdapte
   private handleWashingCourseEvent(attribute: string, value: unknown): void {
     if (attribute === 'supportedCourses') {
       this.supportedCourses = (value as string[]) ?? [];
-      this.matterApi?.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.DishwasherMode, this.buildDishwasherModeCluster());
+      if (this.isClusterSupported(MatterClusterNames.DishwasherMode)) {
+        this.matterApi?.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.DishwasherMode, this.buildDishwasherModeCluster());
+      }
       return;
     }
     if (attribute !== 'washingCourse') return;
@@ -513,9 +539,10 @@ export class DishwasherAdapter extends BaseMatterAdapter implements MatterAdapte
     const idx = this.supportedCourses.indexOf(course);
     if (idx >= 0 && idx !== this.currentDishwasherMode) {
       this.currentDishwasherMode = idx;
-      this.matterApi?.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.DishwasherMode, { currentMode: idx });
+      if (this.isClusterSupported(MatterClusterNames.DishwasherMode)) {
+        this.matterApi?.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.DishwasherMode, { currentMode: idx });
+      }
     } else if (idx === -1) {
-      // course not in supported list (custom), update anyway
       this.log.debug(`[DishwasherAdapter] washingCourse ${course} not in supported list`);
     }
   }
@@ -528,7 +555,9 @@ export class DishwasherAdapter extends BaseMatterAdapter implements MatterAdapte
         if (jobNames.length > 0) {
           this.currentPhaseList = jobNames;
           this.updatePhaseFromJobState();
-          this.matterApi?.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.OperationalState, this.buildOperationalStateCluster());
+          if (this.isClusterSupported(MatterClusterNames.OperationalState)) {
+            this.matterApi?.updateAccessoryState(this.accessory!.UUID, MatterClusterNames.OperationalState, this.buildOperationalStateCluster());
+          }
         }
       }
       return;
